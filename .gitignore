@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+bin/
+service_account.json
+current_url.txt
+data/test_*.db
+.env

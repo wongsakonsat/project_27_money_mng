@@ -1,0 +1,123 @@
+{
+  "accounts": [
+    {
+      "Account_Name": "Thai Credit",
+      "Initial_Balance": 10000.0,
+      "Current_Balance": 46350.0,
+      "Updated_At": "2026-08-17 08:19:43"
+    },
+    {
+      "Account_Name": "SCB",
+      "Initial_Balance": 2000.0,
+      "Current_Balance": 4100.0,
+      "Updated_At": "2026-08-17 08:19:43"
+    },
+    {
+      "Account_Name": "KBANK",
+      "Initial_Balance": 1500.0,
+      "Current_Balance": 2200.0,
+      "Updated_At": "2026-08-17 08:19:43"
+    },
+    {
+      "Account_Name": "BAY",
+      "Initial_Balance": 40000.0,
+      "Current_Balance": 43500.0,
+      "Updated_At": "2026-08-17 08:19:43"
+    }
+  ],
+  "transactions": [
+    {
+      "Transaction_ID": "TX-20260817081943-3184",
+      "Date": "2026-08-17",
+      "Cycle": "2026-07-23_2026-08-22",
+      "Type": "Income",
+      "From_Account": "",
+      "To_Account": "Thai Credit",
+      "Category": "Salary",
+      "Amount": 43000.0,
+      "Note": "💰 เงินเดือนเข้าบัญชีหลัก Thai Credit (Monthly Salary Inflow)"
+    },
+    {
+      "Transaction_ID": "TX-20260817081943-B910",
+      "Date": "2026-08-17",
+      "Cycle": "2026-07-23_2026-08-22",
+      "Type": "Internal_Transfer",
+      "From_Account": "Thai Credit",
+      "To_Account": "SCB",
+      "Category": "Other",
+      "Amount": 3150.0,
+      "Note": "⚡ จัดสรรงบสัปดาห์ (Weekly Allowance): อาหาร 2,450 + เดินทาง 700 THB"
+    },
+    {
+      "Transaction_ID": "TX-20260817081943-1FCE",
+      "Date": "2026-08-17",
+      "Cycle": "2026-07-23_2026-08-22",
+      "Type": "Expense",
+      "From_Account": "SCB",
+      "To_Account": "",
+      "Category": "Food_Daily",
+      "Amount": 350.0,
+      "Note": "Lunch"
+    },
+    {
+      "Transaction_ID": "TX-20260817081943-2A9B",
+      "Date": "2026-08-17",
+      "Cycle": "2026-07-23_2026-08-22",
+      "Type": "Internal_Transfer",
+      "From_Account": "SCB",
+      "To_Account": "KBANK",
+      "Category": "Transit",
+      "Amount": 700.0,
+      "Note": "🚆 แตะบัตรโดยสาร BTS/MRT สำรองเงินเข้า KBANK ทันที (Zero CC Debt)"
+    },
+    {
+      "Transaction_ID": "TX-20260817081943-AF25",
+      "Date": "2026-08-17",
+      "Cycle": "2026-07-23_2026-08-22",
+      "Type": "Internal_Transfer",
+      "From_Account": "Thai Credit",
+      "To_Account": "BAY",
+      "Category": "Insurance_Fund",
+      "Amount": 3500.0,
+      "Note": "🛡️ โอนเงินสำรองประกันประจำงวด (Thai Credit -> BAY Insurance Fund)"
+    }
+  ],
+  "wishlist": [
+    {
+      "Item_Name": "YSL Perfume",
+      "Target_Price": 3500.0,
+      "Target_Month": "2026-09",
+      "Priority": "High",
+      "Status": "In Progress",
+      "Current_Saved": 1500.0
+    },
+    {
+      "Item_Name": "Luca Bag",
+      "Target_Price": 1400.0,
+      "Target_Month": "2026-08",
+      "Priority": "Medium",
+      "Status": "In Progress",
+      "Current_Saved": 1400.0
+    },
+    {
+      "Item_Name": "White Sneakers",
+      "Target_Price": 2800.0,
+      "Target_Month": "2026-10",
+      "Priority": "Medium",
+      "Status": "Pending",
+      "Current_Saved": 500.0
+    },
+    {
+      "Item_Name": "Classic Watch",
+      "Target_Price": 5500.0,
+      "Target_Month": "2026-11",
+      "Priority": "Low",
+      "Status": "Pending",
+      "Current_Saved": 1000.0
+    }
+  ],
+  "settings": {
+    "sheet_name": "Money_Management_2026",
+    "use_google_sheets": false
+  }
+}
