@@ -392,7 +392,7 @@ with tab_pending_cc:
                 due_text = f"🗓️ จ่ายก่อนวันที่ {due_d}"
 
             card_border = "#059669" if is_paid else ("#DC2626" if days_diff <= 1 else "#2563EB")
-            logo_html = ui_components.get_bank_logo_html(b_name if b_name in config.ACCOUNT_NAMES else "KBANK", 22)
+            logo_html = ui_components.get_bank_logo_html(c_id, 24)
 
             with st.container():
                 st.markdown(f"""

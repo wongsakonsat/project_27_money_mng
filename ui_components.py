@@ -14,12 +14,50 @@ import config
 _LOGO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo")
 _LOGO_MIME_BY_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
+_KNOWN_LOGOS = {
+    "Thai Credit": "tcb.jpeg",
+    "TCB": "tcb.jpeg",
+    "tcb": "tcb.jpeg",
+    "SCB": "scb.jpg",
+    "scb": "scb.jpg",
+    "scb_cardx": "scb.jpg",
+    "SCB CardX": "scb.jpg",
+    "KBANK": "kbank.png",
+    "kbank": "kbank.png",
+    "kbank_cc": "kbank.png",
+    "KBANK Credit Card": "kbank.png",
+    "BAY": "bay.png",
+    "bay": "bay.png",
+    "UOB": "uob.png",
+    "uob": "uob.png",
+    "uob_one": "uob.png",
+    "UOB One": "uob.png",
+    "TTB": "ttb.png",
+    "ttb": "ttb.png",
+    "ttb_disney": "ttb.png",
+    "TTB Disney": "ttb.png",
+    "KTC": "ktc.png",
+    "ktc": "ktc.png",
+    "ktc_cc": "ktc.png"
+}
+
 @st.cache_data
-def get_bank_logo_data_uri(account_name: str) -> str | None:
-    """Returns a base64 data: URI for the account's bank logo (logo/*.png|jpg), or None if missing."""
-    filename = config.ACCOUNTS.get(account_name, {}).get("logo")
+def get_bank_logo_data_uri(identifier: str) -> str | None:
+    """Returns a base64 data: URI for the account or credit card bank logo (logo/*.png|jpg|jpeg)."""
+    if not identifier:
+        return None
+    filename = config.ACCOUNTS.get(identifier, {}).get("logo")
+    if not filename:
+        filename = _KNOWN_LOGOS.get(identifier) or _KNOWN_LOGOS.get(str(identifier).lower())
+    if not filename:
+        for ext in [".png", ".jpg", ".jpeg"]:
+            candidate = os.path.join(_LOGO_DIR, f"{str(identifier).lower()}{ext}")
+            if os.path.exists(candidate):
+                filename = f"{str(identifier).lower()}{ext}"
+                break
     if not filename:
         return None
+
     path = os.path.join(_LOGO_DIR, filename)
     if not os.path.exists(path):
         return None
@@ -29,12 +67,13 @@ def get_bank_logo_data_uri(account_name: str) -> str | None:
     return f"data:{mime};base64,{encoded}"
 
 def get_bank_logo_html(account_name: str, size: int = 22) -> str:
-    """Returns HTML img element for bank logo, or fallback emoji icon."""
+    """Returns HTML img element for bank/card logo, or fallback emoji icon."""
     uri = get_bank_logo_data_uri(account_name)
     if uri:
         return f'<img class="bank-logo" src="{uri}" alt="{account_name}" style="width:{size}px; height:{size}px; border-radius:6px; vertical-align:middle; object-fit:cover; box-shadow:0 1px 2px rgba(0,0,0,0.08);">'
     acc = config.ACCOUNTS.get(account_name, {})
-    return acc.get("icon", "🏦")
+    return acc.get("icon", "💳" if "card" in str(account_name).lower() else "🏦")
+
 
 
 CUSTOM_CSS = """

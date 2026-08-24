@@ -118,7 +118,8 @@ DEFAULT_CREDIT_CARDS = [
         "statement_amount": 359.71,
         "paid_amount": 360.00,
         "status": "Paid",
-        "icon": "💳"
+        "icon": "💳",
+        "logo": "uob.png"
     },
     {
         "card_id": "ttb_disney",
@@ -128,7 +129,8 @@ DEFAULT_CREDIT_CARDS = [
         "statement_amount": 27886.78,
         "paid_amount": 0.0,
         "status": "Unpaid",
-        "icon": "💳"
+        "icon": "💳",
+        "logo": "ttb.png"
     },
     {
         "card_id": "kbank_cc",
@@ -138,7 +140,8 @@ DEFAULT_CREDIT_CARDS = [
         "statement_amount": 58500.00,
         "paid_amount": 0.0,
         "status": "Unpaid",
-        "icon": "💳"
+        "icon": "💳",
+        "logo": "kbank.png"
     },
     {
         "card_id": "scb_cardx",
@@ -148,7 +151,8 @@ DEFAULT_CREDIT_CARDS = [
         "statement_amount": 245.00,
         "paid_amount": 0.0,
         "status": "Unpaid",
-        "icon": "💳"
+        "icon": "💳",
+        "logo": "scb.jpg"
     },
     {
         "card_id": "ktc_cc",
@@ -158,7 +162,8 @@ DEFAULT_CREDIT_CARDS = [
         "statement_amount": 0.00,
         "paid_amount": 0.0,
         "status": "Paid",
-        "icon": "💳"
+        "icon": "💳",
+        "logo": "ktc.png"
     },
 ]
 
