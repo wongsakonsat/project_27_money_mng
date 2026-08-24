@@ -191,3 +191,36 @@ class TestPendingCreditCard:
         assert deleted is True
         assert engine.get_pending_cc_summary()["pending_count"] == 0
 
+
+class TestCreditCardsStatement:
+    def test_get_credit_cards_seeds_defaults(self, engine):
+        cards = engine.backend.get_credit_cards()
+        assert len(cards) == 5
+        card_names = [c["Card_Name"] for c in cards]
+        assert "TTB Disney" in card_names
+        assert "UOB One" in card_names
+        assert "KBANK Credit Card" in card_names
+
+    def test_pay_credit_card_records_expense_and_updates_card(self, engine):
+        # Pay TTB Disney bill 27886.78 from KBANK
+        init_kbank = engine.get_accounts_summary()["kbank_balance"]
+        tx = engine.backend.pay_credit_card("ttb_disney", pay_amount=27886.78, from_account="KBANK")
+        assert tx is not None
+        assert tx["Type"] == "Expense"
+        assert tx["From_Account"] == "KBANK"
+        assert tx["Category"] == "Credit_Card_Bill"
+        assert tx["Amount"] == 27886.78
+
+        assert engine.get_accounts_summary()["kbank_balance"] == init_kbank - 27886.78
+        cards = {c["Card_ID"]: c for c in engine.backend.get_credit_cards()}
+        assert cards["ttb_disney"]["Status"] == "Paid"
+        assert cards["ttb_disney"]["Remaining_Amount"] == 0.0
+
+    def test_update_credit_card_statement_amount(self, engine):
+        engine.backend.update_credit_card("scb_cardx", statement_amount=500.0)
+        cards = {c["Card_ID"]: c for c in engine.backend.get_credit_cards()}
+        assert cards["scb_cardx"]["Statement_Amount"] == 500.0
+        assert cards["scb_cardx"]["Remaining_Amount"] == 500.0
+        assert cards["scb_cardx"]["Status"] == "Unpaid"
+
+

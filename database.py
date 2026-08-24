@@ -88,6 +88,20 @@ class FinanceDatabase:
                 )
             """)
 
+            # Credit Card Statements Master Table (รายการบิลบัตรเครดิต & วันครบกำหนด)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS credit_cards (
+                    card_id TEXT PRIMARY KEY,
+                    card_name TEXT NOT NULL,
+                    bank_name TEXT NOT NULL,
+                    due_day INTEGER NOT NULL,
+                    statement_amount REAL NOT NULL DEFAULT 0.0,
+                    paid_amount REAL NOT NULL DEFAULT 0.0,
+                    status TEXT NOT NULL DEFAULT 'Unpaid',
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
             # Settings / Sync Config Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
@@ -114,6 +128,16 @@ class FinanceDatabase:
                         INSERT INTO wishlist (item_name, target_price, target_month, priority, status, current_saved)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, (item["Item_Name"], item["Target_Price"], item["Target_Month"], item["Priority"], item["Status"], item["Current_Saved"]))
+
+            # Seed default credit cards if empty
+            cursor.execute("SELECT COUNT(*) FROM credit_cards")
+            if cursor.fetchone()[0] == 0:
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                for card in getattr(config, "DEFAULT_CREDIT_CARDS", []):
+                    cursor.execute("""
+                        INSERT INTO credit_cards (card_id, card_name, bank_name, due_day, statement_amount, paid_amount, status, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (card["card_id"], card["card_name"], card["bank_name"], card["due_day"], card["statement_amount"], card.get("paid_amount", 0.0), card.get("status", "Unpaid"), now_str))
 
             conn.commit()
 
@@ -414,6 +438,89 @@ class FinanceDatabase:
             self.update_initial_balances(initial_balances)
         else:
             self.recalculate_all_balances()
+
+    # ------------------ CREDIT CARD STATEMENTS (ยอดใบแจ้งยอดบัตรเครดิต) ------------------
+
+    def get_credit_cards(self) -> list[dict]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT card_id, card_name, bank_name, due_day, statement_amount, paid_amount, status, updated_at
+                FROM credit_cards
+                ORDER BY due_day ASC
+            """)
+            rows = cursor.fetchall()
+            return [
+                {
+                    "Card_ID": r["card_id"],
+                    "Card_Name": r["card_name"],
+                    "Bank_Name": r["bank_name"],
+                    "Due_Day": int(r["due_day"]),
+                    "Statement_Amount": float(r["statement_amount"]),
+                    "Paid_Amount": float(r["paid_amount"]),
+                    "Remaining_Amount": max(0.0, float(r["statement_amount"]) - float(r["paid_amount"])),
+                    "Status": r["status"],
+                    "Updated_At": r["updated_at"]
+                }
+                for r in rows
+            ]
+
+    def update_credit_card(self, card_id: str, statement_amount: float, due_day: int | None = None) -> bool:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if due_day is not None:
+                cursor.execute("""
+                    UPDATE credit_cards
+                    SET statement_amount = ?, due_day = ?, status = CASE WHEN paid_amount >= ? AND ? > 0 THEN 'Paid' ELSE 'Unpaid' END, updated_at = ?
+                    WHERE card_id = ?
+                """, (float(statement_amount), int(due_day), float(statement_amount), float(statement_amount), now_str, card_id))
+            else:
+                cursor.execute("""
+                    UPDATE credit_cards
+                    SET statement_amount = ?, status = CASE WHEN paid_amount >= ? AND ? > 0 THEN 'Paid' ELSE 'Unpaid' END, updated_at = ?
+                    WHERE card_id = ?
+                """, (float(statement_amount), float(statement_amount), float(statement_amount), now_str, card_id))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def pay_credit_card(self, card_id: str, pay_amount: float, from_account: str = "KBANK",
+                        pay_date: str | date | None = None) -> dict | None:
+        d = pay_date or date.today()
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        card_name = card_id
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM credit_cards WHERE card_id = ?", (card_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            card_name = row["card_name"]
+            stmt_amt = float(row["statement_amount"])
+            curr_paid = float(row["paid_amount"])
+            new_paid = curr_paid + float(pay_amount)
+            new_status = "Paid" if new_paid >= stmt_amt and stmt_amt > 0 else ("Paid" if stmt_amt == 0 else "Partial")
+
+            cursor.execute("""
+                UPDATE credit_cards
+                SET paid_amount = ?, status = ?, updated_at = ?
+                WHERE card_id = ?
+            """, (new_paid, new_status, now_str, card_id))
+            conn.commit()
+
+        # Add double-entry expense transaction
+        tx = self.add_transaction(
+            date_val=d,
+            tx_type="Expense",
+            from_account=from_account,
+            to_account=None,
+            category="Credit_Card_Bill",
+            amount=float(pay_amount),
+            note=f"💳 ชำระบิลบัตรเครดิต {card_name} (ตัดจ่ายจาก {from_account})"
+        )
+        return tx
 
     # ------------------ SETTINGS ------------------
 

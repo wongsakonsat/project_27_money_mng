@@ -319,3 +319,30 @@ class TransactionEngine:
             "cleared_count": len(cleared_items)
         }
 
+    def get_credit_cards_summary(self) -> dict:
+        """
+        Returns summary of all credit card statements, due dates, and remaining balances.
+        """
+        cards = self.backend.get_credit_cards()
+        total_statement = sum(c["Statement_Amount"] for c in cards)
+        total_paid = sum(c["Paid_Amount"] for c in cards)
+        total_remaining = sum(c["Remaining_Amount"] for c in cards)
+        unpaid_count = sum(1 for c in cards if c["Remaining_Amount"] > 0)
+
+        # Buffer health
+        kbank_bal = self.get_accounts_summary()["kbank_balance"]
+        buffer_diff = kbank_bal - total_remaining
+        is_safe = buffer_diff >= 0
+
+        return {
+            "cards": cards,
+            "total_statement": total_statement,
+            "total_paid": total_paid,
+            "total_remaining": total_remaining,
+            "unpaid_count": unpaid_count,
+            "kbank_balance": kbank_bal,
+            "buffer_diff": buffer_diff,
+            "is_safe": is_safe
+        }
+
+

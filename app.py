@@ -338,103 +338,215 @@ with tab_dash:
         """, unsafe_allow_html=True)
 
 # =============================================================
-# TAB 2: PENDING CC BACKING (เงินค่าบัตรรอโอน)
+# TAB 2: CREDIT CARDS & BILLS (บริหารบิลบัตรเครดิต & ยอดรอจ่าย)
 # =============================================================
 with tab_pending_cc:
-    st.markdown("### 💳 เงินค่าบัตรรอโอนเข้า KBANK (Pending CC Reserve Backing)")
-    st.caption("ระบบพักรายการรูดบัตรเครดิตที่ยังไม่ได้โอนเงินสำรองเข้า KBANK ทันที (เช่น ตอนรูดยังไม่มีเงินใน SCB หรือลืมโอน) เพื่อรอหาเงินมาโอนปิดยอด")
+    st.markdown("### 💳 บริหารบิลบัตรเครดิต & ยอดรอจ่าย (Credit Cards & Bills Management)")
+    st.caption("ระบบติดตาม 2 มิติ: 1) ยอดตามใบแจ้งยอด & กำหนดวันชำระของบัตรแต่ละใบ  2) รายการรูดบัตรที่รอหาเงินมาโอนเข้า KBANK")
 
-    pending_summary = engine.get_pending_cc_summary()
-    ui_components.render_pending_cc_kpis(pending_summary, summary)
+    cc_subtab1, cc_subtab2 = st.tabs([
+        "🏛️ 1. ยอดใบแจ้งยอด & วันครบกำหนดชำระ (Statement Bills & Due Dates)",
+        "🔄 2. รายการรูดบัตรที่รอโอนเข้า KBANK (Unbacked Swipes)"
+    ])
 
-    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+    # ------------------ SUBTAB 1: STATEMENT BILLS ------------------
+    with cc_subtab1:
+        cc_summary = engine.get_credit_cards_summary()
+        ui_components.render_credit_card_kpis(cc_summary)
 
-    with st.expander("➕ บันทึกรายการรูดบัตรใหม่ (ที่รอหาเงินมาโอนเข้า KBANK)", expanded=False):
-        with st.form("new_pending_cc_form", clear_on_submit=True):
-            col_p1, col_p2 = st.columns(2)
-            with col_p1:
-                p_date = st.date_input("วันที่รูดบัตร (Swipe Date)", value=date.today())
-                p_item = st.text_input("ชื่อรายการ / สินค้าที่รูด", placeholder="เช่น เติมน้ำมัน, ช้อปปิ้งออนไลน์, กินเลี้ยง")
-            with col_p2:
-                p_amount = st.number_input("ยอดเงินที่รูด (฿)", min_value=1.0, step=50.0, value=200.0, format="%.2f")
-                p_cat = st.selectbox(
-                    "หมวดหมู่งบ:",
-                    options=config.CATEGORY_NAMES,
-                    format_func=lambda x: config.CATEGORIES[x]["label"]
-                )
-            p_note = st.text_input("หมายเหตุเพิ่มเติม (ถ้ามี)", placeholder="เช่น รูดบัตรไว้ก่อน รอเงินเข้ากระเป๋าค่อยโอนเข้า KBANK")
-            
-            p_submit = st.form_submit_button("💾 บันทึกรายการรอโอน (Add Pending CC)", use_container_width=True)
-            if p_submit:
-                if p_item.strip():
-                    backend.add_pending_cc(
-                        date_val=p_date,
-                        item_name=p_item.strip(),
-                        category=p_cat,
-                        amount=p_amount,
-                        note=p_note.strip()
-                    )
-                    st.success(f"✅ บันทึกรายการ '{p_item.strip()}' ฿{p_amount:,.2f} รอโอนเข้า KBANK เรียบร้อย!")
-                    st.rerun()
-                else:
-                    st.error("กรุณาระบุชื่อรายการ/สินค้าที่รูด")
+        st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+        st.markdown("#### 📋 รายการบิลบัตรเครดิตตามใบแจ้งยอด (Statement Breakdown)")
 
-    st.markdown("#### 📋 รายการค่าบัตรที่รอหาเงินมาโอนเข้า KBANK")
-    
-    pending_items = pending_summary["pending_items"]
-    if not pending_items:
-        st.info("🎉 **ยอดเยี่ยม! ไม่มีรายการค่าบัตรรอโอน** ทุกยอดรูดบัตรได้รับการสำรองเงินเข้า KBANK ครบถ้วนแล้ว (Zero CC Debt 100%)")
-    else:
-        for idx, item in enumerate(pending_items):
-            cat_meta = config.CATEGORIES.get(item["Category"], {"label": item["Category"], "icon": "📦"})
+        today_day = date.today().day
+        today_date = date.today()
+
+        cards = cc_summary["cards"]
+        cols_cards = st.columns(len(cards)) if len(cards) <= 3 else None
+
+        for card in cards:
+            c_id = card["Card_ID"]
+            c_name = card["Card_Name"]
+            b_name = card["Bank_Name"]
+            due_d = card["Due_Day"]
+            stmt_amt = card["Statement_Amount"]
+            paid_amt = card["Paid_Amount"]
+            rem_amt = card["Remaining_Amount"]
+            is_paid = card["Status"] == "Paid" or rem_amt <= 0
+
+            # Due day text & badge
+            days_diff = due_d - today_day
+            if is_paid:
+                due_badge = "badge-emerald"
+                due_text = f"✅ ชำระครบแล้ว (ครบกำหนดวันที่ {due_d})"
+            elif days_diff == 0:
+                due_badge = "badge-rose"
+                due_text = f"🚨 ครบกำหนดชำระวันนี้! (วันที่ {due_d})"
+            elif days_diff == 1:
+                due_badge = "badge-rose"
+                due_text = f"⚠️ ครบกำหนดชำระพรุ่งนี้! (วันที่ {due_d})"
+            elif 0 < days_diff <= 5:
+                due_badge = "badge-amber"
+                due_text = f"⏳ เหลืออีก {days_diff} วัน (วันที่ {due_d})"
+            else:
+                due_badge = "badge-primary"
+                due_text = f"🗓️ จ่ายก่อนวันที่ {due_d}"
+
+            card_border = "#059669" if is_paid else ("#DC2626" if days_diff <= 1 else "#2563EB")
+            logo_html = ui_components.get_bank_logo_html(b_name if b_name in config.ACCOUNT_NAMES else "KBANK", 22)
+
             with st.container():
                 st.markdown(f"""
-                <div class="account-card" style="border-left: 4px solid #DC2626; margin-bottom: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                <div class="account-card" style="border-left: 4px solid {card_border}; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                         <div>
-                            <span style="font-size: 16px; font-weight: 700; color: #0F172A;">{cat_meta['icon']} {item['Item_Name']}</span>
-                            <span class="badge-pill badge-rose" style="margin-left: 8px;">⏳ รอโอนเงินเข้า KBANK</span>
-                            <div style="font-size: 12px; color: #64748B; margin-top: 4px;">
-                                📅 รูดเมื่อวันที่: <b>{item['Date']}</b> • หมวดหมู่: <b>{cat_meta['label']}</b>
-                                {f' • หมายเหตุ: <i>{item["Note"]}</i>' if item["Note"] else ''}
+                            <span style="font-size: 16px; font-weight: 700; color: #0F172A;">{logo_html} {c_name}</span>
+                            <span class="badge-pill {due_badge}" style="margin-left: 8px;">{due_text}</span>
+                            <div style="font-size: 12.5px; color: #64748B; margin-top: 4px;">
+                                ยอดตามใบแจ้งยอด: <b>฿{stmt_amt:,.2f}</b> • ชำระแล้ว: <b style="color: #059669;">฿{paid_amt:,.2f}</b>
                             </div>
                         </div>
-                        <div style="font-size: 22px; font-weight: 800; color: #DC2626;">
-                            ฿{item['Amount']:,.2f}
+                        <div style="text-align: right;">
+                            <div style="font-size: 11px; color: #64748B; text-transform: uppercase;">ยอดที่ต้องจ่ายคงเหลือ</div>
+                            <div style="font-size: 22px; font-weight: 800; color: {'#059669' if is_paid else '#DC2626'};">
+                                ฿{rem_amt:,.2f}
+                            </div>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
-                with col_btn1:
-                    if st.button(f"⚡ โอนเคลียร์จาก SCB ➡️ KBANK (฿{item['Amount']:,.0f})", key=f"clear_scb_{item['Pending_ID']}", use_container_width=True):
-                        backend.clear_pending_cc(item["Pending_ID"], from_account="SCB")
-                        st.success(f"✅ โอนเงิน ฿{item['Amount']:,.2f} จาก SCB ➡️ KBANK เพื่อเคลียร์รายการ '{item['Item_Name']}' เรียบร้อย!")
-                        st.rerun()
-                with col_btn2:
-                    if st.button(f"⚡ โอนเคลียร์จาก Thai Credit ➡️ KBANK (฿{item['Amount']:,.0f})", key=f"clear_tc_{item['Pending_ID']}", use_container_width=True):
-                        backend.clear_pending_cc(item["Pending_ID"], from_account="Thai Credit")
-                        st.success(f"✅ โอนเงิน ฿{item['Amount']:,.2f} จาก Thai Credit ➡️ KBANK เพื่อเคลียร์รายการ '{item['Item_Name']}' เรียบร้อย!")
-                        st.rerun()
-                with col_btn3:
-                    if st.button("🗑️ ลบ", key=f"del_pcc_{item['Pending_ID']}", use_container_width=True):
-                        backend.delete_pending_cc(item["Pending_ID"])
-                        st.warning("ลบรายการเรียบร้อย")
-                        st.rerun()
-                
-                st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
 
-    # Cleared History
-    cleared_items = pending_summary["cleared_items"]
-    if cleared_items:
-        with st.expander(f"📜 ประวัติรายการที่โอนเคลียร์เข้า KBANK แล้ว ({len(cleared_items)} รายการ)"):
-            cleared_df = pd.DataFrame(cleared_items)[["Date", "Item_Name", "Category", "Amount", "Cleared_From_Account", "Cleared_At", "Note"]]
-            cleared_df.columns = ["วันที่รูด", "รายการ", "หมวดหมู่", "ยอดเงิน (฿)", "บัญชีที่โอนเคลียร์", "เวลาที่เคลียร์", "หมายเหตุ"]
-            st.dataframe(
-                cleared_df.style.format({"ยอดเงิน (฿)": "฿{:,.2f}"}),
-                use_container_width=True
-            )
+                if not is_paid and rem_amt > 0:
+                    col_pbtn1, col_pbtn2 = st.columns(2)
+                    with col_pbtn1:
+                        if st.button(f"⚡ ชำระบิลจาก KBANK (฿{rem_amt:,.2f})", key=f"pay_kbank_{c_id}", use_container_width=True):
+                            backend.pay_credit_card(c_id, pay_amount=rem_amt, from_account="KBANK")
+                            st.success(f"✅ บันทึกตัดจ่ายบิลบัตร {c_name} ฿{rem_amt:,.2f} จาก KBANK เรียบร้อย!")
+                            st.rerun()
+                    with col_pbtn2:
+                        if st.button(f"⚡ ชำระบิลจาก Thai Credit (฿{rem_amt:,.2f})", key=f"pay_tc_{c_id}", use_container_width=True):
+                            backend.pay_credit_card(c_id, pay_amount=rem_amt, from_account="Thai Credit")
+                            st.success(f"✅ บันทึกตัดจ่ายบิลบัตร {c_name} ฿{rem_amt:,.2f} จาก Thai Credit เรียบร้อย!")
+                            st.rerun()
+
+                st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+
+        with st.expander("✏️ ปรับแก้ / อัปเดตยอดใบแจ้งยอดประจำเดือน (Edit Statement Amounts)"):
+            st.caption("อัปเดตยอดบิลตามใบแจ้งหนี้จริงที่ธนาคารส่งมาในแต่ละรอบบิล")
+            with st.form("edit_credit_cards_form"):
+                cols_form = st.columns(len(cards)) if len(cards) <= 5 else [st.columns(2)]
+                new_amounts = {}
+                for idx, c in enumerate(cards):
+                    c_id = c["Card_ID"]
+                    col_target = cols_form[idx] if cols_form and idx < len(cols_form) else st
+                    with col_target:
+                        new_amounts[c_id] = st.number_input(
+                            f"{c['Card_Name']} (ครบกำหนดวันที่ {c['Due_Day']})",
+                            min_value=0.0,
+                            step=100.0,
+                            value=float(c["Statement_Amount"]),
+                            format="%.2f",
+                            key=f"edit_amt_{c_id}"
+                        )
+                if st.form_submit_button("💾 บันทึกยอดใบแจ้งยอดใหม่", use_container_width=True):
+                    for cid, amt in new_amounts.items():
+                        backend.update_credit_card(card_id=cid, statement_amount=amt)
+                    st.success("✅ อัปเดตยอดใบแจ้งยอดบัตรเครดิตเรียบร้อย!")
+                    st.rerun()
+
+    # ------------------ SUBTAB 2: UNBACKED SWIPES ------------------
+    with cc_subtab2:
+        pending_summary = engine.get_pending_cc_summary()
+        ui_components.render_pending_cc_kpis(pending_summary, summary)
+
+        st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+        with st.expander("➕ บันทึกรายการรูดบัตรใหม่ (ที่รอหาเงินมาโอนเข้า KBANK)", expanded=False):
+            with st.form("new_pending_cc_form", clear_on_submit=True):
+                col_p1, col_p2 = st.columns(2)
+                with col_p1:
+                    p_date = st.date_input("วันที่รูดบัตร (Swipe Date)", value=date.today())
+                    p_item = st.text_input("ชื่อรายการ / สินค้าที่รูด", placeholder="เช่น เติมน้ำมัน, ช้อปปิ้งออนไลน์, กินเลี้ยง")
+                with col_p2:
+                    p_amount = st.number_input("ยอดเงินที่รูด (฿)", min_value=1.0, step=50.0, value=200.0, format="%.2f")
+                    p_cat = st.selectbox(
+                        "หมวดหมู่งบ:",
+                        options=config.CATEGORY_NAMES,
+                        format_func=lambda x: config.CATEGORIES[x]["label"]
+                    )
+                p_note = st.text_input("หมายเหตุเพิ่มเติม (ถ้ามี)", placeholder="เช่น รูดบัตรไว้ก่อน รอเงินเข้ากระเป๋าค่อยโอนเข้า KBANK")
+                
+                p_submit = st.form_submit_button("💾 บันทึกรายการรอโอน (Add Pending CC)", use_container_width=True)
+                if p_submit:
+                    if p_item.strip():
+                        backend.add_pending_cc(
+                            date_val=p_date,
+                            item_name=p_item.strip(),
+                            category=p_cat,
+                            amount=p_amount,
+                            note=p_note.strip()
+                        )
+                        st.success(f"✅ บันทึกรายการ '{p_item.strip()}' ฿{p_amount:,.2f} รอโอนเข้า KBANK เรียบร้อย!")
+                        st.rerun()
+                    else:
+                        st.error("กรุณาระบุชื่อรายการ/สินค้าที่รูด")
+
+        st.markdown("#### 📋 รายการค่าบัตรที่รอหาเงินมาโอนเข้า KBANK")
+        
+        pending_items = pending_summary["pending_items"]
+        if not pending_items:
+            st.info("🎉 **ยอดเยี่ยม! ไม่มีรายการค่าบัตรรอโอน** ทุกยอดรูดบัตรได้รับการสำรองเงินเข้า KBANK ครบถ้วนแล้ว (Zero CC Debt 100%)")
+        else:
+            for idx, item in enumerate(pending_items):
+                cat_meta = config.CATEGORIES.get(item["Category"], {"label": item["Category"], "icon": "📦"})
+                with st.container():
+                    st.markdown(f"""
+                    <div class="account-card" style="border-left: 4px solid #DC2626; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <span style="font-size: 16px; font-weight: 700; color: #0F172A;">{cat_meta['icon']} {item['Item_Name']}</span>
+                                <span class="badge-pill badge-rose" style="margin-left: 8px;">⏳ รอโอนเงินเข้า KBANK</span>
+                                <div style="font-size: 12px; color: #64748B; margin-top: 4px;">
+                                    📅 รูดเมื่อวันที่: <b>{item['Date']}</b> • หมวดหมู่: <b>{cat_meta['label']}</b>
+                                    {f' • หมายเหตุ: <i>{item["Note"]}</i>' if item["Note"] else ''}
+                                </div>
+                            </div>
+                            <div style="font-size: 22px; font-weight: 800; color: #DC2626;">
+                                ฿{item['Amount']:,.2f}
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
+                    with col_btn1:
+                        if st.button(f"⚡ โอนเคลียร์จาก SCB ➡️ KBANK (฿{item['Amount']:,.0f})", key=f"clear_scb_{item['Pending_ID']}", use_container_width=True):
+                            backend.clear_pending_cc(item["Pending_ID"], from_account="SCB")
+                            st.success(f"✅ โอนเงิน ฿{item['Amount']:,.2f} จาก SCB ➡️ KBANK เพื่อเคลียร์รายการ '{item['Item_Name']}' เรียบร้อย!")
+                            st.rerun()
+                    with col_btn2:
+                        if st.button(f"⚡ โอนเคลียร์จาก Thai Credit ➡️ KBANK (฿{item['Amount']:,.0f})", key=f"clear_tc_{item['Pending_ID']}", use_container_width=True):
+                            backend.clear_pending_cc(item["Pending_ID"], from_account="Thai Credit")
+                            st.success(f"✅ โอนเงิน ฿{item['Amount']:,.2f} จาก Thai Credit ➡️ KBANK เพื่อเคลียร์รายการ '{item['Item_Name']}' เรียบร้อย!")
+                            st.rerun()
+                    with col_btn3:
+                        if st.button("🗑️ ลบ", key=f"del_pcc_{item['Pending_ID']}", use_container_width=True):
+                            backend.delete_pending_cc(item["Pending_ID"])
+                            st.warning("ลบรายการเรียบร้อย")
+                            st.rerun()
+                    
+                    st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+
+        # Cleared History
+        cleared_items = pending_summary["cleared_items"]
+        if cleared_items:
+            with st.expander(f"📜 ประวัติรายการที่โอนเคลียร์เข้า KBANK แล้ว ({len(cleared_items)} รายการ)"):
+                cleared_df = pd.DataFrame(cleared_items)[["Date", "Item_Name", "Category", "Amount", "Cleared_From_Account", "Cleared_At", "Note"]]
+                cleared_df.columns = ["วันที่รูด", "รายการ", "หมวดหมู่", "ยอดเงิน (฿)", "บัญชีที่โอนเคลียร์", "เวลาที่เคลียร์", "หมายเหตุ"]
+                st.dataframe(
+                    cleared_df.style.format({"ยอดเงิน (฿)": "฿{:,.2f}"}),
+                    use_container_width=True
+                )
+
 
 st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 

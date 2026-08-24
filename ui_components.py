@@ -519,3 +519,57 @@ def render_pending_cc_kpis(pending_summary: dict, accounts_summary: dict):
         </div>
         """, unsafe_allow_html=True)
 
+def render_credit_card_kpis(cc_summary: dict):
+    """Renders top metric cards for Credit Card Statements & Bills."""
+    cols = st.columns(4)
+    total_remaining = cc_summary["total_remaining"]
+    total_statement = cc_summary["total_statement"]
+    kbank_bal = cc_summary["kbank_balance"]
+    buffer_diff = cc_summary["buffer_diff"]
+    is_safe = cc_summary["is_safe"]
+
+    with cols[0]:
+        val_color = "#DC2626" if total_remaining > 0 else "#059669"
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid {val_color};">
+            <div class="metric-label">💳 ยอดบิลบัตรเครดิตที่ต้องจ่าย</div>
+            <div class="metric-value" style="color: {val_color};">฿{total_remaining:,.2f}</div>
+            <div class="metric-sub neutral">ยอดรวมตามใบแจ้งยอด: ฿{total_statement:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[1]:
+        logo_kbank = get_bank_logo_html("KBANK", 18)
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #059669;">
+            <div class="metric-label">{logo_kbank} ยอดเงินสำรองใน KBANK</div>
+            <div class="metric-value" style="color: #059669;">฿{kbank_bal:,.2f}</div>
+            <div class="metric-sub neutral">เงินสดที่เตรียมไว้ตัดจ่ายบิลบัตร</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[2]:
+        status_color = "#059669" if is_safe else "#DC2626"
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid {status_color};">
+            <div class="metric-label">🛡️ สภาพคล่องสำรอง (Buffer Health)</div>
+            <div class="metric-value" style="color: {status_color};">
+                {'+฿' if buffer_diff >= 0 else '-฿'}{abs(buffer_diff):,.2f}
+            </div>
+            <div class="metric-sub {'neutral' if is_safe else 'danger'}">
+                {'✅ เงินสำรองใน KBANK พอจ่ายครบ 100%' if is_safe else '⚠️ เงินใน KBANK ไม่พอจ่ายบิล'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[3]:
+        unpaid = cc_summary["unpaid_count"]
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #2563EB;">
+            <div class="metric-label">📋 บัตรที่รอตัดชำระ</div>
+            <div class="metric-value">{unpaid} <span style="font-size: 15px; color: #64748B;">/ {len(cc_summary['cards'])} ใบ</span></div>
+            <div class="metric-sub neutral">ชำระครบแล้ว {len(cc_summary['cards']) - unpaid} ใบ</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+

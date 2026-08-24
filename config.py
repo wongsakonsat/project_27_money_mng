@@ -107,3 +107,58 @@ DEFAULT_WISHLIST = [
     {"Item_Name": "White Sneakers", "Target_Price": 2800.0, "Target_Month": "2026-10", "Priority": "Medium", "Status": "Pending", "Current_Saved": 500.0},
     {"Item_Name": "Classic Watch", "Target_Price": 5500.0, "Target_Month": "2026-11", "Priority": "Low", "Status": "Pending", "Current_Saved": 1000.0},
 ]
+
+# Credit Cards Statement Master & Due Dates
+DEFAULT_CREDIT_CARDS = [
+    {
+        "card_id": "uob_one",
+        "card_name": "UOB One",
+        "bank_name": "UOB",
+        "due_day": 18,
+        "statement_amount": 359.71,
+        "paid_amount": 360.00,
+        "status": "Paid",
+        "icon": "💳"
+    },
+    {
+        "card_id": "ttb_disney",
+        "card_name": "TTB Disney",
+        "bank_name": "TTB",
+        "due_day": 25,
+        "statement_amount": 27886.78,
+        "paid_amount": 0.0,
+        "status": "Unpaid",
+        "icon": "💳"
+    },
+    {
+        "card_id": "kbank_cc",
+        "card_name": "KBANK Credit Card",
+        "bank_name": "KBANK",
+        "due_day": 5,
+        "statement_amount": 58500.00,
+        "paid_amount": 0.0,
+        "status": "Unpaid",
+        "icon": "💳"
+    },
+    {
+        "card_id": "scb_cardx",
+        "card_name": "SCB CardX",
+        "bank_name": "SCB",
+        "due_day": 12,
+        "statement_amount": 245.00,
+        "paid_amount": 0.0,
+        "status": "Unpaid",
+        "icon": "💳"
+    },
+    {
+        "card_id": "ktc_cc",
+        "card_name": "KTC",
+        "bank_name": "KTC",
+        "due_day": 3,
+        "statement_amount": 0.00,
+        "paid_amount": 0.0,
+        "status": "Paid",
+        "icon": "💳"
+    },
+]
+

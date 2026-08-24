@@ -243,3 +243,22 @@ class FinanceBackend:
         if self.is_connected_to_sheets and self.webhook_url:
             self.sync_push_to_webhook()
 
+    # ------------------ CREDIT CARD STATEMENTS PASS-THROUGHS ------------------
+
+    def get_credit_cards(self) -> list[dict]:
+        return self.db.get_credit_cards()
+
+    def update_credit_card(self, card_id: str, statement_amount: float, due_day: int | None = None) -> bool:
+        return self.db.update_credit_card(card_id=card_id, statement_amount=statement_amount, due_day=due_day)
+
+    def pay_credit_card(self, card_id: str, pay_amount: float, from_account: str = "KBANK",
+                        pay_date: str | date | None = None) -> dict | None:
+        tx = self.db.pay_credit_card(card_id=card_id, pay_amount=pay_amount, from_account=from_account, pay_date=pay_date)
+        if tx and self.is_connected_to_sheets and self.webhook_url:
+            try:
+                requests.post(self.webhook_url, json={"action": "add_transaction", "transaction": tx}, timeout=5)
+            except Exception as e:
+                print(f"Non-blocking webhook push error: {e}")
+        return tx
+
+
