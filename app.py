@@ -653,64 +653,156 @@ with tab_wishlist:
 
     wishlist_items = backend.get_wishlist()
     
+    # Wishlist KPI Summary Cards
+    total_wish_target = sum(float(i.get("Target_Price", 0)) for i in wishlist_items)
+    total_wish_saved = sum(float(i.get("Current_Saved", 0)) for i in wishlist_items)
+    purchased_count = sum(1 for i in wishlist_items if i.get("Status") == "Purchased")
+    pending_count = len(wishlist_items) - purchased_count
+
+    w_col1, w_col2, w_col3, w_col4 = st.columns(4)
+    with w_col1:
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #7C3AED;">
+            <div class="metric-label">🎁 มูลค่าเป้าหมายรวม</div>
+            <div class="metric-value">฿{total_wish_target:,.2f}</div>
+            <div class="metric-sub neutral">ทั้งหมด {len(wishlist_items)} รายการ</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with w_col2:
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #059669;">
+            <div class="metric-label">💰 เงินสะสมในเป้าหมาย</div>
+            <div class="metric-value" style="color: #059669;">฿{total_wish_saved:,.2f}</div>
+            <div class="metric-sub neutral">ความคืบหน้าภาพรวม {int((total_wish_saved/total_wish_target)*100) if total_wish_target > 0 else 0}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with w_col3:
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #2563EB;">
+            <div class="metric-label">⏳ กำลังสะสม / รอซื้อ</div>
+            <div class="metric-value" style="color: #2563EB;">{pending_count} <span style="font-size: 15px; color: #64748B;">รายการ</span></div>
+            <div class="metric-sub neutral">เป้าหมายที่อยู่ระหว่างดำเนินการ</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with w_col4:
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #10B981;">
+            <div class="metric-label">🎉 พิชิตเป้าหมายแล้ว</div>
+            <div class="metric-value" style="color: #10B981;">{purchased_count} <span style="font-size: 15px; color: #64748B;">รายการ</span></div>
+            <div class="metric-sub neutral">ซื้อสำเร็จเรียบร้อย</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
     col_w1, col_w2 = st.columns([3, 2])
     
     with col_w1:
         st.markdown("#### 🛍️ รายการของที่อยากได้ (Wishlist Items)")
         
-        for idx, item in enumerate(wishlist_items):
-            target_price = float(item.get("Target_Price", 0.0))
-            saved_amt = float(item.get("Current_Saved", 0.0))
-            status = item.get("Status", "Pending")
-            pct = min(100, int((saved_amt / target_price) * 100)) if target_price > 0 else 0
-            
-            with st.container():
-                st.markdown(f"""
-                <div class="account-card" style="margin-bottom: 16px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 16px; font-weight: 700; color: #FFFFFF;">🎁 {item['Item_Name']}</span>
-                        <span class="badge-pill {'badge-emerald' if status == 'Purchased' else 'badge-purple'}">{status} • {item.get('Priority', 'Medium')} Priority</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 14px;">
-                        <span style="color: #9CA3AF;">เป้าหมาย: {item.get('Target_Month', '2026-09')}</span>
-                        <span style="font-weight: 700; color: #34D399;">฿{saved_amt:,.0f} / ฿{target_price:,.0f} ({pct}%)</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+        if not wishlist_items:
+            st.info("ยังไม่มีเป้าหมายใน Wishlist เพิ่มเป้าหมายใหม่ได้ที่ฟอร์มด้านขวา")
+        else:
+            for idx, item in enumerate(wishlist_items):
+                target_price = float(item.get("Target_Price", 0.0))
+                saved_amt = float(item.get("Current_Saved", 0.0))
+                status = item.get("Status", "Pending")
+                priority = item.get("Priority", "Medium")
+                pct = min(100, int((saved_amt / target_price) * 100)) if target_price > 0 else 0
                 
-                st.progress(pct / 100)
+                is_purchased = status == "Purchased"
+                card_border = "#059669" if is_purchased else ("#7C3AED" if priority == "High" else "#2563EB")
                 
-                # Action Buttons for Wishlist Item
-                col_btn1, col_btn2 = st.columns([1, 2])
-                with col_btn1:
-                    if status != "Purchased":
-                        if st.button(f"💳 ซื้อแล้ว (฿{target_price:,.0f})", key=f"buy_wish_{idx}"):
-                            # Log transaction as Wishlist expense from SCB or Thai Credit
-                            backend.add_transaction(
-                                date_val=date.today(),
-                                tx_type="Expense",
-                                from_account="SCB",
-                                to_account=None,
-                                category="Wishlist_Hobby",
-                                amount=target_price,
-                                note=f"🎁 ซื้อของรางวัลชีวิต: {item['Item_Name']}"
-                            )
-                            # Update status to Purchased
-                            wishlist_items[idx]["Status"] = "Purchased"
-                            wishlist_items[idx]["Current_Saved"] = target_price
-                            backend.save_wishlist(wishlist_items)
-                            st.success(f"🎉 ยินดีด้วย! บันทึกการซื้อ {item['Item_Name']} เรียบร้อยแล้ว")
-                            st.rerun()
-                st.markdown("<hr style='border-color: rgba(255,255,255,0.05);'>", unsafe_allow_html=True)
+                with st.container():
+                    st.markdown(f"""
+                    <div class="account-card" style="border-left: 4px solid {card_border}; margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <div>
+                                <span style="font-size: 16px; font-weight: 700; color: #0F172A;">🎁 {item['Item_Name']}</span>
+                                <span class="badge-pill {'badge-emerald' if is_purchased else ('badge-rose' if priority == 'High' else 'badge-primary')}" style="margin-left: 6px;">
+                                    {'✅ ซื้อแล้ว' if is_purchased else f'⚡ {priority} Priority'}
+                                </span>
+                                <div style="font-size: 12.5px; color: #64748B; margin-top: 4px;">
+                                    📅 เดือนเป้าหมาย: <b>{item.get('Target_Month', '2026-08')}</b> • สถานะ: <b>{status}</b>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; color: #64748B; text-transform: uppercase;">ราคาเป้าหมาย</div>
+                                <div style="font-size: 20px; font-weight: 800; color: {'#059669' if is_purchased else '#2563EB'};">
+                                    ฿{target_price:,.2f}
+                                </div>
+                                <div style="font-size: 12px; color: #64748B;">
+                                    สะสมแล้ว: <b>฿{saved_amt:,.0f}</b> ({pct}%)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.progress(pct / 100)
+                    
+                    # Action Buttons for Wishlist Item
+                    if not is_purchased:
+                        col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
+                        with col_btn1:
+                            if st.button(f"⚡ ซื้อแล้ว (ตัดจาก SCB ฿{target_price:,.0f})", key=f"buy_wish_scb_{idx}", use_container_width=True):
+                                backend.add_transaction(
+                                    date_val=date.today(),
+                                    tx_type="Expense",
+                                    from_account="SCB",
+                                    to_account=None,
+                                    category="Wishlist_Hobby",
+                                    amount=target_price,
+                                    note=f"🎁 ซื้อของรางวัลชีวิต: {item['Item_Name']}"
+                                )
+                                wishlist_items[idx]["Status"] = "Purchased"
+                                wishlist_items[idx]["Current_Saved"] = target_price
+                                backend.save_wishlist(wishlist_items)
+                                st.success(f"🎉 บันทึกการซื้อ '{item['Item_Name']}' ฿{target_price:,.2f} ตัดจาก SCB เรียบร้อย!")
+                                st.rerun()
+                        with col_btn2:
+                            if st.button(f"⚡ ซื้อแล้ว (ตัดจาก Thai Credit ฿{target_price:,.0f})", key=f"buy_wish_tc_{idx}", use_container_width=True):
+                                backend.add_transaction(
+                                    date_val=date.today(),
+                                    tx_type="Expense",
+                                    from_account="Thai Credit",
+                                    to_account=None,
+                                    category="Wishlist_Hobby",
+                                    amount=target_price,
+                                    note=f"🎁 ซื้อของรางวัลชีวิต: {item['Item_Name']}"
+                                )
+                                wishlist_items[idx]["Status"] = "Purchased"
+                                wishlist_items[idx]["Current_Saved"] = target_price
+                                backend.save_wishlist(wishlist_items)
+                                st.success(f"🎉 บันทึกการซื้อ '{item['Item_Name']}' ฿{target_price:,.2f} ตัดจาก Thai Credit เรียบร้อย!")
+                                st.rerun()
+                        with col_btn3:
+                            if st.button("🗑️ ลบ", key=f"del_wish_{idx}", use_container_width=True):
+                                wishlist_items.pop(idx)
+                                backend.save_wishlist(wishlist_items)
+                                st.warning("ลบรายการออกจาก Wishlist เรียบร้อย")
+                                st.rerun()
+                    else:
+                        col_p1, col_p2 = st.columns([4, 1])
+                        with col_p1:
+                            st.caption("✅ รายการนี้ซื้อสำเร็จและบันทึกตัดบัญชีเรียบร้อยแล้ว")
+                        with col_p2:
+                            if st.button("🗑️ ลบ", key=f"del_wish_done_{idx}", use_container_width=True):
+                                wishlist_items.pop(idx)
+                                backend.save_wishlist(wishlist_items)
+                                st.warning("ลบรายการออกจาก Wishlist เรียบร้อย")
+                                st.rerun()
+
+                    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     with col_w2:
         st.markdown("#### ➕ เพิ่มเป้าหมาย Wishlist ใหม่")
         with st.form("new_wishlist_item_form", clear_on_submit=True):
-            new_item_name = st.text_input("ชื่อสิ่งของ / รางวัล", placeholder="เช่น หูฟังไร้สาย, รองเท้าผ้าใบ")
-            new_price = st.number_input("ราคาเป้าหมาย (THB)", min_value=100.0, step=100.0, value=2500.0)
+            new_item_name = st.text_input("ชื่อสิ่งของ / รางวัล", placeholder="เช่น น้ำหอม, หูฟังไร้สาย, รองเท้าผ้าใบ")
+            new_price = st.number_input("ราคาเป้าหมาย (THB)", min_value=100.0, step=100.0, value=2700.0, format="%.2f")
             new_month = st.text_input("เดือนเป้าหมาย (Target Month)", value=date.today().strftime("%Y-%m"))
-            new_priority = st.selectbox("ลำดับความสำคัญ (Priority)", options=["High", "Medium", "Low"], index=1)
-            new_saved = st.number_input("เงินที่เก็บสะสมไว้แล้ว (THB)", min_value=0.0, step=100.0, value=0.0)
+            new_priority = st.selectbox("ลำดับความสำคัญ (Priority)", options=["High", "Medium", "Low"], index=0)
+            new_saved = st.number_input("เงินที่เก็บสะสมไว้แล้ว (THB)", min_value=0.0, step=100.0, value=0.0, format="%.2f")
             
             wish_submit = st.form_submit_button("✨ เพิ่มเข้า Wishlist", use_container_width=True)
             if wish_submit:
@@ -728,6 +820,7 @@ with tab_wishlist:
                     st.rerun()
                 else:
                     st.error("⚠️ กรุณาระบุชื่อสิ่งของ")
+
 
 # =============================================================
 # TAB 4: SETUP INITIAL BALANCES & GOOGLE SHEETS SYNC
