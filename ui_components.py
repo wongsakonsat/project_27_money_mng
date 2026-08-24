@@ -611,4 +611,135 @@ def render_credit_card_kpis(cc_summary: dict):
         </div>
         """, unsafe_allow_html=True)
 
+def render_due_credit_card_alerts(cc_summary: dict, today_date: date | None = None):
+    """Renders prominent warning banner on Dashboard if any credit card is due within <= 5 days."""
+    today = today_date or date.today()
+    cards = cc_summary.get("cards", [])
+    
+    due_soon_cards = []
+    for card in cards:
+        rem_amt = card["Remaining_Amount"]
+        if rem_amt <= 0:
+            continue
+        due_d = card["Due_Day"]
+        # Calculate target due date
+        if today.day >= 23:
+            if due_d >= 23:
+                target = date(today.year, today.month, due_d)
+            else:
+                m = today.month + 1 if today.month < 12 else 1
+                y = today.year if today.month < 12 else today.year + 1
+                target = date(y, m, due_d)
+        else:
+            if due_d <= 22:
+                target = date(today.year, today.month, due_d)
+            else:
+                m = today.month - 1 if today.month > 1 else 12
+                y = today.year if today.month > 1 else today.year - 1
+                target = date(y, m, due_d)
+                
+        days_left = (target - today).days
+        if days_left <= 5:
+            due_soon_cards.append({
+                "card": card,
+                "target_date": target,
+                "days_left": days_left
+            })
+
+    if not due_soon_cards:
+        return
+
+    # Render alert banner
+    for item in due_soon_cards:
+        card = item["card"]
+        days_left = item["days_left"]
+        logo_html = get_bank_logo_html(card["Card_ID"], 22)
+        rem_amt = card["Remaining_Amount"]
+        
+        if days_left == 0:
+            badge_text = "🚨 ครบกำหนดชำระวันนี้!"
+            bg_color = "#FEF2F2"
+            border_color = "#DC2626"
+            text_color = "#991B1B"
+        elif days_left == 1:
+            badge_text = "⚠️ ครบกำหนดชำระพรุ่งนี้!"
+            bg_color = "#FEF2F2"
+            border_color = "#DC2626"
+            text_color = "#991B1B"
+        elif days_left < 0:
+            badge_text = f"🚨 เกินกำหนดชำระมาแล้ว {abs(days_left)} วัน!"
+            bg_color = "#FEF2F2"
+            border_color = "#DC2626"
+            text_color = "#991B1B"
+        else:
+            badge_text = f"⏳ เหลือเวลาชำระอีก {days_left} วัน (วันที่ {card['Due_Day']})"
+            bg_color = "#FFFBEB"
+            border_color = "#F59E0B"
+            text_color = "#92400E"
+
+        st.markdown(f"""
+        <div style="background-color: {bg_color}; border: 1.5px solid {border_color}; border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {logo_html}
+                    <div>
+                        <div style="font-weight: 700; font-size: 15px; color: {text_color};">
+                            {card['Card_Name']} — <span style="font-size: 13px; font-weight: 600;">{badge_text}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #64748B; margin-top: 2px;">
+                            วันครบกำหนด: <b>{item['target_date'].strftime('%d %b %Y')}</b> • ยอดที่ต้องชำระ: <b style="color: #DC2626; font-size: 14px;">฿{rem_amt:,.2f}</b>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span class="badge-pill badge-rose" style="font-size: 12px; padding: 4px 10px;">
+                        ยอดค้าง: ฿{rem_amt:,.2f}
+                    </span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_today_expense_summary(today_summary: dict):
+    """Renders daily expense summary with food pacing quota and today's total outflow."""
+    cols = st.columns(3)
+    today_food = today_summary["today_food"]
+    food_base = today_summary["food_baseline"]
+    food_rem = today_summary["food_remaining"]
+    today_exp = today_summary["today_expenses"]
+    today_tx_cnt = today_summary["today_tx_count"]
+    today_date_str = today_summary["today_date_str"]
+
+    with cols[0]:
+        food_status_cls = "neutral" if food_rem >= 0 else "danger"
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #7C3AED;">
+            <div class="metric-label">🍚 งบอาหารวันนี้ (Food Quota)</div>
+            <div class="metric-value">฿{today_food:,.2f} <span style="font-size: 14px; color: #64748B;">/ ฿{food_base:,.0f}</span></div>
+            <div class="metric-sub {food_status_cls}">
+                {'✅ เหลือโควต้าอาหารวันนี้: ฿' + f'{food_rem:,.2f}' if food_rem >= 0 else '⚠️ ใช้อาหารเกินโควตาวันนี้: ฿' + f'{abs(food_rem):,.2f}'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[1]:
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #2563EB;">
+            <div class="metric-label">💸 รายจ่ายรวมวันนี้ ({today_date_str})</div>
+            <div class="metric-value" style="color: #2563EB;">฿{today_exp:,.2f}</div>
+            <div class="metric-sub neutral">บันทึกแล้วทั้งหมด {today_tx_cnt} รายการวันนี้</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[2]:
+        transit = today_summary["today_transit"]
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #059669;">
+            <div class="metric-label">🚆 เดินทาง BTS/MRT วันนี้</div>
+            <div class="metric-value">฿{transit:,.2f}</div>
+            <div class="metric-sub neutral">โควต้าเดินทางประจำสัปดาห์: ฿700.00</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
 

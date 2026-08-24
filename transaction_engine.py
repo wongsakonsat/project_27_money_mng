@@ -345,4 +345,33 @@ class TransactionEngine:
             "is_safe": is_safe
         }
 
+    def get_today_summary(self, target_date: date | None = None) -> dict:
+        """
+        Returns summary of today's expenses, daily food budget usage, and today's transactions.
+        """
+        d = target_date or date.today()
+        d_str = d.strftime("%Y-%m-%d")
+        all_tx = self.backend.get_transactions()
+        today_tx = [t for t in all_tx if t["Date"] == d_str]
+
+        today_expenses = sum(t["Amount"] for t in today_tx if t["Type"] == "Expense")
+        today_food = sum(t["Amount"] for t in today_tx if t["Type"] == "Expense" and t["Category"] == "Food_Daily")
+        today_transit = sum(t["Amount"] for t in today_tx if t["Category"] == "Transit")
+        
+        food_baseline = 350.0
+        food_remaining = food_baseline - today_food
+
+        return {
+            "today_date": d,
+            "today_date_str": d_str,
+            "today_expenses": today_expenses,
+            "today_food": today_food,
+            "today_transit": today_transit,
+            "food_baseline": food_baseline,
+            "food_remaining": food_remaining,
+            "today_tx": today_tx,
+            "today_tx_count": len(today_tx)
+        }
+
+
 

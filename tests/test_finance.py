@@ -224,3 +224,23 @@ class TestCreditCardsStatement:
         assert cards["scb_cardx"]["Status"] == "Unpaid"
 
 
+class TestDailySummary:
+    def test_get_today_summary(self, engine):
+        today = date(2026, 8, 24)
+        engine.backend.add_transaction(
+            date_val=today,
+            tx_type="Expense",
+            from_account="SCB",
+            to_account=None,
+            category="Food_Daily",
+            amount=150.0,
+            note="Lunch"
+        )
+        summary = engine.get_today_summary(target_date=today)
+        assert summary["today_expenses"] == 150.0
+        assert summary["today_food"] == 150.0
+        assert summary["food_remaining"] == 200.0
+        assert summary["today_tx_count"] == 1
+
+
+

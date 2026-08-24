@@ -243,12 +243,23 @@ tab_dash, tab_pending_cc, tab_ledgers, tab_wishlist, tab_settings = st.tabs([
 # TAB 1: MAIN DASHBOARD
 # =============================================================
 with tab_dash:
-    # 4 KPI Summary Cards
+    # 0. Credit Card Due Date Alert Banner (if any card is due <= 5 days)
+    cc_summary = engine.get_credit_cards_summary()
+    ui_components.render_due_credit_card_alerts(cc_summary)
+
+    # 1. 4 KPI Summary Cards
     ui_components.render_kpi_cards(summary, cycle_analytics)
     
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+    # 2. Daily Expense Summary Section (Today's Expenses & Food Pacing)
+    st.markdown("#### 📅 สรุปค่าใช้จ่ายประจำวัน (Today's Expense & Daily Pacing)")
+    today_summary = engine.get_today_summary()
+    ui_components.render_today_expense_summary(today_summary)
+
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
     
-    # 4 Account Balances Visual Row
+    # 3. 4 Account Balances Visual Row
     st.markdown("#### 🏛️ ยอดเงินคงเหลือแยกรายบัญชี (4 Core Accounts)")
     ui_components.render_account_cards(summary["accounts"])
 
