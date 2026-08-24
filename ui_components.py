@@ -5,6 +5,7 @@ Clean, modern, high-contrast visual design with subtle accent indicators.
 
 import base64
 import os
+from datetime import date
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
