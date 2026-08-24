@@ -225,7 +225,7 @@ class FinanceDatabase:
             cursor.execute("""
                 SELECT transaction_id, date, cycle, type, from_account, to_account, category, amount, note, created_at
                 FROM transactions
-                ORDER BY date DESC, created_at DESC
+                ORDER BY created_at ASC, transaction_id ASC
             """)
             rows = cursor.fetchall()
             return [
@@ -238,7 +238,8 @@ class FinanceDatabase:
                     "To_Account": r["to_account"] or "",
                     "Category": r["category"],
                     "Amount": float(r["amount"]),
-                    "Note": r["note"] or ""
+                    "Note": r["note"] or "",
+                    "Created_At": r["created_at"]
                 }
                 for r in rows
             ]

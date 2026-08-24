@@ -590,16 +590,36 @@ with tab_ledgers:
     if not statement_df.empty:
         # Running Balance Chart
         chart_data = statement_df.copy()
-        chart_data["Date"] = pd.to_datetime(chart_data["Date"])
-        chart_data = chart_data.sort_values(by="Date", ascending=True)
         
+        # Build clean hover labels & step sequence
+        hover_texts = []
+        x_labels = []
+        for idx_step, r in chart_data.iterrows():
+            d_str = str(r["Date"])
+            desc = r["Description"]
+            bal_val = float(r["Balance"])
+            in_val = float(r["Inflow"])
+            out_val = float(r["Outflow"])
+            
+            in_text = f"<br>🟢 เงินเข้า: +฿{in_val:,.2f}" if in_val > 0 else ""
+            out_text = f"<br>🔴 เงินออก: -฿{out_val:,.2f}" if out_val > 0 else ""
+            hover_texts.append(f"<b>{desc}</b><br>📅 วันที่: {d_str}{in_text}{out_text}<br>💰 <b>คงเหลือ: ฿{bal_val:,.2f}</b>")
+            
+            if len(chart_data) <= 1:
+                x_labels.append(d_str)
+            else:
+                x_labels.append(f"{d_str} (#{idx_step + 1})")
+
         fig_bal = go.Figure()
         fig_bal.add_trace(go.Scatter(
-            x=chart_data["Date"],
+            x=x_labels,
             y=chart_data["Balance"],
             mode="lines+markers",
             name=f"ยอดคงเหลือ {selected_account}",
             line=dict(color=config.ACCOUNTS[selected_account]["color"], width=2.5),
+            marker=dict(size=7, color=config.ACCOUNTS[selected_account]["color"]),
+            hovertext=hover_texts,
+            hoverinfo="text",
             fill="tozeroy",
             fillcolor="rgba(37, 99, 235, 0.05)"
         ))
@@ -609,7 +629,12 @@ with tab_ledgers:
             plot_bgcolor="#FFFFFF",
             font=dict(color="#334155", family="Prompt, Inter", size=12),
             margin=dict(l=20, r=20, t=40, b=20),
-            xaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0"),
+            xaxis=dict(
+                type="category",
+                title="ลำดับรายการ / วันที่ (Transaction Sequence & Date)",
+                gridcolor="#F1F5F9",
+                linecolor="#E2E8F0"
+            ),
             yaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0", title="ยอดคงเหลือ (THB)"),
             height=280
         )

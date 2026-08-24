@@ -141,16 +141,18 @@ class TransactionEngine:
             return pd.DataFrame(columns=["Date", "Transaction_ID", "Type", "Description", "Inflow", "Outflow", "Balance", "Category", "Note"])
 
         df = pd.DataFrame(transactions)
-        # Sort chronologically
-        df["Date"] = pd.to_datetime(df["Date"])
-        df = df.sort_values(by=["Date", "Transaction_ID"], ascending=True)
+        # Sort chronologically by recording time (Created_At)
+        if "Created_At" in df.columns:
+            df = df.sort_values(by=["Created_At", "Transaction_ID"], ascending=True)
+        else:
+            df = df.sort_values(by=["Date", "Transaction_ID"], ascending=True)
 
         rows = []
         running_bal = initial_bal
         
         # Initial balance row
         rows.append({
-            "Date": df["Date"].min().strftime("%Y-%m-%d") if not df.empty else date.today().strftime("%Y-%m-%d"),
+            "Date": df["Date"].min() if not df.empty else date.today().strftime("%Y-%m-%d"),
             "Transaction_ID": "INITIAL",
             "Type": "Initial Balance",
             "Description": f"🏁 ยอดเงินเริ่มต้น / ยกมา ({account_name})",
@@ -169,7 +171,7 @@ class TransactionEngine:
             cat = tx.get("Category", "")
             note = tx.get("Note", "")
             tx_id = tx.get("Transaction_ID", "")
-            tx_date_str = tx["Date"].strftime("%Y-%m-%d")
+            tx_date_str = str(tx["Date"])
 
             inflow = 0.0
             outflow = 0.0
