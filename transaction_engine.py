@@ -216,8 +216,8 @@ class TransactionEngine:
                 })
 
         statement_df = pd.DataFrame(rows)
-        # Sort descending for display
-        return statement_df.iloc[::-1].reset_index(drop=True)
+        # Chronological order (Oldest / Initial Balance at top -> Newest at bottom)
+        return statement_df.reset_index(drop=True)
 
     # ------------------ MACROS ------------------
 
