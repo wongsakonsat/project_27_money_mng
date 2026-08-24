@@ -656,16 +656,33 @@ with tab_ledgers:
         )
         
         # Delete Transaction Option
-        with st.expander("🗑️ ลบรายการที่ไม่ต้องการ (Delete Transaction)"):
-            tx_ids = [t for t in display_df["Transaction_ID"].tolist() if t != "INITIAL"]
-            if tx_ids:
-                selected_del = st.selectbox("เลือก Transaction ID ที่ต้องการลบ:", options=tx_ids)
-                if st.button("❌ ยืนยันการลบรายการนี้", type="secondary"):
-                    if backend.delete_transaction(selected_del):
-                        st.success(f"✅ ลบรายการ {selected_del} เรียบร้อยแล้ว")
-                        st.rerun()
+        with st.expander("🗑️ ลบ / ยกเลิกรายการที่บันทึกผิด (Delete / Undo Transaction)", expanded=False):
+            all_tx_list = backend.get_transactions()
+            if all_tx_list:
+                st.caption("เลือกลบรายการที่กดซ้ำหรือบันทึกผิดพลาด ระบบจะคำนวณยอดเงินคงเหลือของทุกบัญชีใหม่อัตโนมัติ")
+                tx_dict = {t["Transaction_ID"]: t for t in all_tx_list}
+                
+                selected_del = st.selectbox(
+                    "เลือกรายการที่ต้องการลบ:",
+                    options=list(tx_dict.keys()),
+                    format_func=lambda tid: (
+                        f"📅 {tx_dict[tid]['Date']} | {tx_dict[tid]['Type']} | "
+                        f"{config.CATEGORIES.get(tx_dict[tid]['Category'], {}).get('label', tx_dict[tid]['Category'])} | "
+                        f"฿{tx_dict[tid]['Amount']:,.2f} "
+                        f"({tx_dict[tid]['From_Account'] or 'None'} ➡️ {tx_dict[tid]['To_Account'] or 'External'})"
+                        f"{' — ' + tx_dict[tid]['Note'] if tx_dict[tid]['Note'] else ''}"
+                    )
+                )
+                
+                col_del_btn1, col_del_btn2 = st.columns([1, 3])
+                with col_del_btn1:
+                    if st.button("🗑️ ยืนยันการลบรายการนี้", type="primary", use_container_width=True):
+                        target_info = tx_dict[selected_del]
+                        if backend.delete_transaction(selected_del):
+                            st.success(f"✅ ลบรายการ '{target_info.get('Note') or target_info.get('Category')}' ฿{target_info['Amount']:,.2f} เรียบร้อยแล้ว!")
+                            st.rerun()
             else:
-                st.info("ไม่มีรายการที่สามารถลบได้ (ไม่รวมยอดเงินเริ่มต้น)")
+                st.info("ไม่มีรายการธุรกรรมในระบบให้ลบ (ยกเว้นยอดเงินเริ่มต้น)")
     else:
         st.info(f"ยังไม่มีรายการเคลื่อนไหวสำหรับบัญชี {selected_account}")
 
