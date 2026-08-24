@@ -572,8 +572,12 @@ function getCycleAnalytics(cycleInfo) {
   const cycleTx = state.transactions.filter(t => t.cycle === cycleInfo.cycleId);
   const catSpend = {};
   CATEGORY_NAMES.forEach(c => catSpend[c] = 0);
-  cycleTx.filter(t => t.type === "Expense").forEach(t => {
-    catSpend[t.category] = (catSpend[t.category] || 0) + t.amount;
+  cycleTx.forEach(t => {
+    if (t.type === "Expense") {
+      catSpend[t.category] = (catSpend[t.category] || 0) + t.amount;
+    } else if (t.type === "Internal_Transfer" && t.from === "Thai Credit" && ["Utilities_Phone", "Mom", "Rent", "DCA"].includes(t.category)) {
+      catSpend[t.category] = (catSpend[t.category] || 0) + t.amount;
+    }
   });
 
   const foodSpent = catSpend["Food_Daily"] || 0;
@@ -802,7 +806,7 @@ const COMMITMENT_ROWS = [
   { key: "Mom", label: "ให้คุณแม่", doneLabel: "จ่ายแล้ว", pendingLabel: "รอจ่าย (23rd)" },
   { key: "DCA", label: "ลงทุน DCA", doneLabel: "ลงทุนแล้ว", pendingLabel: "รอตัด DCA" },
   { key: "Rent", label: "ค่าเช่าห้อง", doneLabel: "จ่ายแล้ว", pendingLabel: "รอสิ้นเดือน" },
-  { key: "Utilities_Phone", label: "ค่าน้ำ/ไฟ/โทรศัพท์", doneLabel: "จ่ายแล้ว", pendingLabel: "รอวันที่ 15" }
+  { key: "Utilities_Phone", label: "ค่าน้ำ/ไฟ/เน็ต/โทรศัพท์", doneLabel: "จ่ายแล้ว", pendingLabel: "รอวันที่ 15" }
 ];
 
 function renderCommitments(analytics) {

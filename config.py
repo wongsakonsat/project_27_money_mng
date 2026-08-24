@@ -61,7 +61,7 @@ BUDGET_RULES = {
         "DCA Investment": {"amount": 4800.0, "from_account": "Thai Credit", "category": "DCA", "type": "Expense", "note": "Monthly DCA investment"},
         "Insurance Sinking Fund": {"amount": 3500.0, "from_account": "Thai Credit", "to_account": "BAY", "category": "Insurance_Fund", "type": "Internal_Transfer", "note": "Thai Credit -> BAY Insurance Fund"},
         "Rent Provision": {"amount": 6000.0, "from_account": "Thai Credit", "category": "Rent", "type": "Expense", "note": "Due at month-end, held in Thai Credit"},
-        "Utilities & Phone": {"amount": 2650.0, "from_account": "Thai Credit", "category": "Utilities_Phone", "type": "Expense", "note": "Due ~15th, held in Thai Credit"}
+        "Utilities & Phone & Internet": {"amount": 3311.0, "from_account": "Thai Credit", "category": "Utilities_Phone", "type": "Expense", "note": "ค่าน้ำ/ไฟ/เน็ตบ้าน/โทรศัพท์ (Held in Thai Credit)"}
     },
     "Daily Living (SCB Weekly Disbursed)": {
         "Weekly Allowance Total": 3150.0,

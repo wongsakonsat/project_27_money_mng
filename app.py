@@ -338,12 +338,12 @@ with tab_dash:
     # 5. Utilities & Phone
     util_stat = cycle_analytics["fixed_status"]["Utilities_Phone"]
     with col_env5:
-        status_badge = "✅ จ่ายแล้ว" if util_stat["done"] else "⏳ รอวันที่ 15"
+        status_badge = "✅ จ่ายครบแล้ว" if util_stat["done"] else f"⏳ จ่ายแล้ว ฿{util_stat['spent']:,.0f}"
         badge_cls = "badge-emerald" if util_stat["done"] else "badge-amber"
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-label">⚡ ค่าน้ำ/ไฟ/โทรศัพท์</div>
-            <div style="font-size: 18px; font-weight: 700;">฿{util_stat['spent']:,.0f} / 2,650</div>
+            <div class="metric-label">⚡ ค่าน้ำ/ไฟ/เน็ต/โทรศัพท์</div>
+            <div style="font-size: 18px; font-weight: 700;">฿{util_stat['spent']:,.0f} / {util_stat['budget']:,.0f}</div>
             <div style="margin-top: 8px;"><span class="badge-pill {badge_cls}">{status_badge}</span></div>
         </div>
         """, unsafe_allow_html=True)

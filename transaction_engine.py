@@ -72,17 +72,17 @@ class TransactionEngine:
 
         cycle_df = df[df["Cycle"] == target_cycle_id] if not df.empty and "Cycle" in df.columns else pd.DataFrame()
 
-        # Category spending aggregation
+        # Category spending aggregation (Includes Expenses + Transfers allocated from Thai Credit for commitments)
         cat_spend = {cat: 0.0 for cat in config.CATEGORY_NAMES}
         if not cycle_df.empty:
-            expenses = cycle_df[cycle_df["Type"] == "Expense"]
-            for _, row in expenses.iterrows():
+            for _, row in cycle_df.iterrows():
+                tx_type = row.get("Type")
                 cat = row.get("Category")
                 amt = float(row.get("Amount", 0.0))
-                if cat in cat_spend:
-                    cat_spend[cat] += amt
-                else:
-                    cat_spend[cat] = amt
+                if tx_type == "Expense":
+                    cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
+                elif tx_type == "Internal_Transfer" and row.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
+                    cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
 
         # Daily Food Metrics
         food_spent = cat_spend.get("Food_Daily", 0.0)
@@ -99,7 +99,7 @@ class TransactionEngine:
             "Mom": {"budget": 5000.0, "spent": cat_spend.get("Mom", 0.0), "done": cat_spend.get("Mom", 0.0) >= 5000.0},
             "DCA": {"budget": 4800.0, "spent": cat_spend.get("DCA", 0.0), "done": cat_spend.get("DCA", 0.0) >= 4800.0},
             "Rent": {"budget": 6000.0, "spent": cat_spend.get("Rent", 0.0), "done": cat_spend.get("Rent", 0.0) >= 6000.0},
-            "Utilities_Phone": {"budget": 2650.0, "spent": cat_spend.get("Utilities_Phone", 0.0), "done": cat_spend.get("Utilities_Phone", 0.0) >= 2650.0},
+            "Utilities_Phone": {"budget": 3311.0, "spent": cat_spend.get("Utilities_Phone", 0.0), "done": cat_spend.get("Utilities_Phone", 0.0) >= 3311.0},
         }
 
         # Insurance Sinking Fund Transfer check (Thai Credit -> BAY)
