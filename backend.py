@@ -17,15 +17,24 @@ from database import FinanceDatabase
 CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), "service_account.json")
 
 class FinanceBackend:
-    def __init__(self):
-        self.db = FinanceDatabase()
+    def __init__(self, db_path: str | None = None, skip_remote_connect: bool = False):
+        """
+        db_path: use an isolated SQLite file instead of the production database
+                 (pass a temp path in tests instead of monkey-patching self.db afterwards).
+        skip_remote_connect: skip the webhook/Google Sheets connection attempt made at
+                 startup, so constructing a backend in tests never triggers network I/O.
+        """
+        self.db = FinanceDatabase(db_path=db_path) if db_path else FinanceDatabase()
         self.gspread_client = None
         self.sheet = None
         self.is_connected_to_sheets = False
         self.connection_error = None
         self.sheet_title = "Money_Management_2026"
         self.webhook_url = self.db.get_setting("webhook_url", "")
-        
+
+        if skip_remote_connect:
+            return
+
         # Check webhook or service account
         if self.webhook_url:
             self.test_webhook_connection(self.webhook_url)
@@ -206,3 +215,31 @@ class FinanceBackend:
         self.db.save_wishlist(items)
         if self.is_connected_to_sheets and self.webhook_url:
             self.sync_push_to_webhook()
+
+    # ------------------ PENDING CC BACKING PASS-THROUGHS ------------------
+
+    def get_pending_cc(self, status: str | None = None) -> list[dict]:
+        return self.db.get_pending_cc(status=status)
+
+    def add_pending_cc(self, date_val: str | date, item_name: str, category: str,
+                       amount: float, note: str = "") -> dict:
+        return self.db.add_pending_cc(date_val=date_val, item_name=item_name,
+                                      category=category, amount=amount, note=note)
+
+    def clear_pending_cc(self, pending_id: str, from_account: str = "SCB") -> dict | None:
+        tx = self.db.clear_pending_cc(pending_id=pending_id, from_account=from_account)
+        if tx and self.is_connected_to_sheets and self.webhook_url:
+            try:
+                requests.post(self.webhook_url, json={"action": "add_transaction", "transaction": tx}, timeout=5)
+            except Exception as e:
+                print(f"Non-blocking webhook push error: {e}")
+        return tx
+
+    def delete_pending_cc(self, pending_id: str) -> bool:
+        return self.db.delete_pending_cc(pending_id)
+
+    def reset_all_data(self, initial_balances: dict[str, float] | None = None):
+        self.db.reset_all_data(initial_balances=initial_balances)
+        if self.is_connected_to_sheets and self.webhook_url:
+            self.sync_push_to_webhook()
+

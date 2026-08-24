@@ -16,6 +16,7 @@ ACCOUNTS = {
         "role": "Receives salary on 23rd, pays fixed bills & immediate commitments, disburses weekly allowance",
         "type": "Primary",
         "icon": "🏛️",
+        "logo": "tcb.jpeg",
         "color": "#1E3A8A", # Deep Blue
         "default_initial": 15000.0
     },
@@ -25,6 +26,7 @@ ACCOUNTS = {
         "role": "Receives weekly allowance (3,150 THB/wk = 2,450 Food + 700 Transit)",
         "type": "Operational",
         "icon": "💜",
+        "logo": "scb.jpg",
         "color": "#6D28D9", # Purple
         "default_initial": 3150.0
     },
@@ -34,6 +36,7 @@ ACCOUNTS = {
         "role": "Holds exact cash transferred immediately after credit card usage for zero CC debt",
         "type": "Buffer",
         "icon": "💚",
+        "logo": "kbank.png",
         "color": "#047857", # Emerald Green
         "default_initial": 2000.0
     },
@@ -43,6 +46,7 @@ ACCOUNTS = {
         "role": "Emergency savings, Insurance Sinking Fund (3,500/mo), swept surpluses",
         "type": "Vault",
         "icon": "💛",
+        "logo": "bay.png",
         "color": "#B45309", # Amber/Gold
         "default_initial": 50000.0
     }

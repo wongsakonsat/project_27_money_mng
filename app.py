@@ -109,41 +109,83 @@ with st.sidebar:
                 st.success(f"✅ สำรองส่วนของเรา ฿{split_my_share:,.2f} เข้า KBANK เรียบร้อย!\n(เมื่อเพื่อนโอน ฿{split_friends_share:,.2f} คืนมา ให้โอนเข้า KBANK ยอดจะครบ ฿{split_total:,.2f} พอดีตัดบิลครับ)")
                 st.rerun()
 
+    with st.expander("💳 รูดบัตรไว้ก่อน (ยังไม่ได้โอนเข้า KBANK)", expanded=False):
+        st.caption("บันทึกรายการที่รูดบัตรไปก่อน แต่ยังไม่มีเงินใน SCB หรือยังไม่ได้โอนเข้า KBANK ทันที รายการจะไปรอในแท็บ 'เงินค่าบัตรรอโอน'")
+        p_quick_item = st.text_input("รายการที่รูด:", placeholder="เช่น ค่าดินเนอร์, เสื้อผ้า", key="sb_p_item")
+        p_quick_amt = st.number_input("ยอดเงินที่รูด (฿):", min_value=0.0, step=50.0, value=300.0, format="%.2f", key="sb_p_amt")
+        p_quick_cat = st.selectbox(
+            "หมวดหมู่:",
+            options=config.CATEGORY_NAMES,
+            format_func=lambda x: config.CATEGORIES[x]["label"],
+            key="sb_p_cat"
+        )
+        if st.button("➕ บันทึกรอโอนเข้า KBANK", use_container_width=True, key="sb_p_btn"):
+            if p_quick_item.strip() and p_quick_amt > 0:
+                backend.add_pending_cc(
+                    date_val=date.today(),
+                    item_name=p_quick_item.strip(),
+                    category=p_quick_cat,
+                    amount=p_quick_amt,
+                    note="บันทึกด่วนจากแถบข้าง (รอโอนเข้า KBANK)"
+                )
+                st.success(f"✅ บันทึก '{p_quick_item.strip()}' ฿{p_quick_amt:,.2f} รอโอนเรียบร้อย!")
+                st.rerun()
+            else:
+                st.error("กรุณาระบุรายการและจำนวนเงิน")
+
     st.markdown("---")
     st.markdown("### ✍️ บันทึกรายการใหม่ (New Transaction)")
 
-    with st.form("new_transaction_form", clear_on_submit=True):
-        tx_type = st.selectbox(
-            "ประเภทรายการ (Type)",
-            options=config.TRANSACTION_TYPES,
-            format_func=lambda x: {
-                "Expense": "🔴 โอนจ่ายภายนอก (Expense)",
-                "Internal_Transfer": "🔄 โอนย้ายภายใน (Internal Transfer)",
-                "Income": "🟢 รายรับ (Income)",
-                "Adjustment": "⚙️ ปรับปรุงยอด (Adjustment)"
-            }.get(x, x)
-        )
+    def _acc_label(x):
+        return f"{config.ACCOUNTS[x]['icon']} {x}" if x in config.ACCOUNTS else "— ไม่ระบุ —"
 
-        col_acc1, col_acc2 = st.columns(2)
-        with col_acc1:
-            from_acc = st.selectbox(
-                "จากบัญชี (From)",
-                options=[""] + config.ACCOUNT_NAMES,
-                index=2 if tx_type == "Expense" else 1, # Default SCB for expense, Thai Credit for transfer
-                format_func=lambda x: f"{config.ACCOUNTS[x]['icon']} {x}" if x in config.ACCOUNTS else "— ไม่ระบุ —"
-            )
-        with col_acc2:
-            to_acc = st.selectbox(
-                "ไปยังบัญชี (To)",
-                options=[""] + config.ACCOUNT_NAMES,
-                index=3 if tx_type == "Internal_Transfer" else 0, # Default KBANK for transfer
-                format_func=lambda x: f"{config.ACCOUNTS[x]['icon']} {x}" if x in config.ACCOUNTS else "— ภายนอก / รายจ่าย —"
-            )
+    # Kept OUTSIDE the form: widgets inside st.form only rerun on submit, so putting the
+    # type choice there meant the From/To fields below it were always one click stale.
+    tx_type = st.radio(
+        "เลือกประเภทรายการ (Choose transaction type)",
+        options=["Expense", "Internal_Transfer", "Income", "Adjustment"],
+        format_func=lambda x: {
+            "Expense": "🔴 จ่ายออก (Pay out)",
+            "Internal_Transfer": "🔄 โอนภายในบัญชี (Transfer)",
+            "Income": "🟢 รายรับ (Income)",
+            "Adjustment": "⚙️ ปรับยอด (Adjustment)"
+        }.get(x, x),
+        horizontal=True,
+        key="new_tx_type"
+    )
+
+    with st.form("new_transaction_form", clear_on_submit=True):
+        to_acc = None
+        from_acc = None
+
+        if tx_type == "Expense":
+            from_acc = st.selectbox("จ่ายออกจากบัญชี (Pay from)", options=config.ACCOUNT_NAMES, index=1, format_func=_acc_label)
+            default_cat = "Food_Daily"
+
+        elif tx_type == "Internal_Transfer":
+            col_acc1, col_acc2 = st.columns(2)
+            with col_acc1:
+                from_acc = st.selectbox("จากบัญชี (From)", options=config.ACCOUNT_NAMES, index=0, format_func=_acc_label)
+            with col_acc2:
+                to_acc = st.selectbox("ไปยังบัญชี (To)", options=config.ACCOUNT_NAMES, index=1, format_func=_acc_label)
+            default_cat = "Other"
+
+        elif tx_type == "Income":
+            to_acc = st.selectbox("รับเข้าบัญชี (Deposit to)", options=config.ACCOUNT_NAMES, index=0, format_func=_acc_label)
+            default_cat = "Salary"
+
+        else:  # Adjustment
+            col_acc1, col_acc2 = st.columns(2)
+            with col_acc1:
+                from_acc = st.selectbox("หักออกจากบัญชี (Decrease, optional)", options=[""] + config.ACCOUNT_NAMES, format_func=_acc_label)
+            with col_acc2:
+                to_acc = st.selectbox("เพิ่มเข้าบัญชี (Increase, optional)", options=[""] + config.ACCOUNT_NAMES, format_func=_acc_label)
+            default_cat = "Other"
 
         cat_choice = st.selectbox(
             "หมวดหมู่ (Category)",
             options=config.CATEGORY_NAMES,
-            index=0 if tx_type == "Expense" else 9 if tx_type == "Income" else 11,
+            index=config.CATEGORY_NAMES.index(default_cat),
             format_func=lambda x: config.CATEGORIES.get(x, {}).get("label", x)
         )
 
@@ -152,15 +194,15 @@ with st.sidebar:
         tx_date = st.date_input("วันที่ทำรายการ (Date)", value=date.today())
         note_val = st.text_input("บันทึกเพิ่มเติม (Note)", placeholder="เช่น มื้อเที่ยง, ค่าไฟหอพัก, รูดบัตรซื้อของ")
 
-        submitted = st.form_submit_button("💾 บันทึกรายการ (Save Transaction)", use_container_width=True)
+        submitted = st.form_submit_button("💾 บันทึกรายการ (Save Transaction)", use_container_width=True, type="primary")
 
         if submitted:
             if amount_val <= 0:
                 st.error("⚠️ กรุณาระบุจำนวนเงินมากกว่า 0")
-            elif tx_type == "Expense" and not from_acc:
-                st.error("⚠️ รายจ่ายต้องระบุบัญชีต้นทาง (From Account)")
-            elif tx_type == "Internal_Transfer" and (not from_acc or not to_acc or from_acc == to_acc):
+            elif tx_type == "Internal_Transfer" and from_acc == to_acc:
                 st.error("⚠️ การโอนภายในต้องระบุบัญชีต้นทางและปลายทางที่ต่างกัน")
+            elif tx_type == "Adjustment" and not from_acc and not to_acc:
+                st.error("⚠️ การปรับยอดต้องระบุบัญชีที่จะเพิ่มหรือหักอย่างน้อยหนึ่งบัญชี")
             else:
                 backend.add_transaction(
                     date_val=tx_date,
@@ -189,8 +231,9 @@ with st.sidebar:
 ui_components.render_hero_header(cycle_info, summary)
 
 # Main Navigation Tabs
-tab_dash, tab_ledgers, tab_wishlist, tab_settings = st.tabs([
+tab_dash, tab_pending_cc, tab_ledgers, tab_wishlist, tab_settings = st.tabs([
     "📊 ภาพรวมการเงิน (Main Dashboard)",
+    "💳 เงินค่าบัตรรอโอน (Pending CC)",
     "🏦 สมุดบัญชีและสเตทเมนต์ (Account Ledgers)",
     "🎁 เป้ารางวัล & Wishlist (Wishlist Tracker)",
     "⚙️ ตั้งค่าเงินเริ่มต้น & Google Sheets (Setup & Sync)"
@@ -210,6 +253,7 @@ with tab_dash:
     ui_components.render_account_cards(summary["accounts"])
 
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
 
     # Charts Row: Food Burn Rate & Category Donut
     col_chart1, col_chart2 = st.columns([3, 2])
@@ -294,7 +338,108 @@ with tab_dash:
         """, unsafe_allow_html=True)
 
 # =============================================================
-# TAB 2: ACCOUNT LEDGERS & STATEMENTS
+# TAB 2: PENDING CC BACKING (เงินค่าบัตรรอโอน)
+# =============================================================
+with tab_pending_cc:
+    st.markdown("### 💳 เงินค่าบัตรรอโอนเข้า KBANK (Pending CC Reserve Backing)")
+    st.caption("ระบบพักรายการรูดบัตรเครดิตที่ยังไม่ได้โอนเงินสำรองเข้า KBANK ทันที (เช่น ตอนรูดยังไม่มีเงินใน SCB หรือลืมโอน) เพื่อรอหาเงินมาโอนปิดยอด")
+
+    pending_summary = engine.get_pending_cc_summary()
+    ui_components.render_pending_cc_kpis(pending_summary, summary)
+
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+    with st.expander("➕ บันทึกรายการรูดบัตรใหม่ (ที่รอหาเงินมาโอนเข้า KBANK)", expanded=False):
+        with st.form("new_pending_cc_form", clear_on_submit=True):
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                p_date = st.date_input("วันที่รูดบัตร (Swipe Date)", value=date.today())
+                p_item = st.text_input("ชื่อรายการ / สินค้าที่รูด", placeholder="เช่น เติมน้ำมัน, ช้อปปิ้งออนไลน์, กินเลี้ยง")
+            with col_p2:
+                p_amount = st.number_input("ยอดเงินที่รูด (฿)", min_value=1.0, step=50.0, value=200.0, format="%.2f")
+                p_cat = st.selectbox(
+                    "หมวดหมู่งบ:",
+                    options=config.CATEGORY_NAMES,
+                    format_func=lambda x: config.CATEGORIES[x]["label"]
+                )
+            p_note = st.text_input("หมายเหตุเพิ่มเติม (ถ้ามี)", placeholder="เช่น รูดบัตรไว้ก่อน รอเงินเข้ากระเป๋าค่อยโอนเข้า KBANK")
+            
+            p_submit = st.form_submit_button("💾 บันทึกรายการรอโอน (Add Pending CC)", use_container_width=True)
+            if p_submit:
+                if p_item.strip():
+                    backend.add_pending_cc(
+                        date_val=p_date,
+                        item_name=p_item.strip(),
+                        category=p_cat,
+                        amount=p_amount,
+                        note=p_note.strip()
+                    )
+                    st.success(f"✅ บันทึกรายการ '{p_item.strip()}' ฿{p_amount:,.2f} รอโอนเข้า KBANK เรียบร้อย!")
+                    st.rerun()
+                else:
+                    st.error("กรุณาระบุชื่อรายการ/สินค้าที่รูด")
+
+    st.markdown("#### 📋 รายการค่าบัตรที่รอหาเงินมาโอนเข้า KBANK")
+    
+    pending_items = pending_summary["pending_items"]
+    if not pending_items:
+        st.info("🎉 **ยอดเยี่ยม! ไม่มีรายการค่าบัตรรอโอน** ทุกยอดรูดบัตรได้รับการสำรองเงินเข้า KBANK ครบถ้วนแล้ว (Zero CC Debt 100%)")
+    else:
+        for idx, item in enumerate(pending_items):
+            cat_meta = config.CATEGORIES.get(item["Category"], {"label": item["Category"], "icon": "📦"})
+            with st.container():
+                st.markdown(f"""
+                <div class="account-card" style="border-left: 4px solid #DC2626; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <div>
+                            <span style="font-size: 16px; font-weight: 700; color: #0F172A;">{cat_meta['icon']} {item['Item_Name']}</span>
+                            <span class="badge-pill badge-rose" style="margin-left: 8px;">⏳ รอโอนเงินเข้า KBANK</span>
+                            <div style="font-size: 12px; color: #64748B; margin-top: 4px;">
+                                📅 รูดเมื่อวันที่: <b>{item['Date']}</b> • หมวดหมู่: <b>{cat_meta['label']}</b>
+                                {f' • หมายเหตุ: <i>{item["Note"]}</i>' if item["Note"] else ''}
+                            </div>
+                        </div>
+                        <div style="font-size: 22px; font-weight: 800; color: #DC2626;">
+                            ฿{item['Amount']:,.2f}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 1])
+                with col_btn1:
+                    if st.button(f"⚡ โอนเคลียร์จาก SCB ➡️ KBANK (฿{item['Amount']:,.0f})", key=f"clear_scb_{item['Pending_ID']}", use_container_width=True):
+                        backend.clear_pending_cc(item["Pending_ID"], from_account="SCB")
+                        st.success(f"✅ โอนเงิน ฿{item['Amount']:,.2f} จาก SCB ➡️ KBANK เพื่อเคลียร์รายการ '{item['Item_Name']}' เรียบร้อย!")
+                        st.rerun()
+                with col_btn2:
+                    if st.button(f"⚡ โอนเคลียร์จาก Thai Credit ➡️ KBANK (฿{item['Amount']:,.0f})", key=f"clear_tc_{item['Pending_ID']}", use_container_width=True):
+                        backend.clear_pending_cc(item["Pending_ID"], from_account="Thai Credit")
+                        st.success(f"✅ โอนเงิน ฿{item['Amount']:,.2f} จาก Thai Credit ➡️ KBANK เพื่อเคลียร์รายการ '{item['Item_Name']}' เรียบร้อย!")
+                        st.rerun()
+                with col_btn3:
+                    if st.button("🗑️ ลบ", key=f"del_pcc_{item['Pending_ID']}", use_container_width=True):
+                        backend.delete_pending_cc(item["Pending_ID"])
+                        st.warning("ลบรายการเรียบร้อย")
+                        st.rerun()
+                
+                st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+
+    # Cleared History
+    cleared_items = pending_summary["cleared_items"]
+    if cleared_items:
+        with st.expander(f"📜 ประวัติรายการที่โอนเคลียร์เข้า KBANK แล้ว ({len(cleared_items)} รายการ)"):
+            cleared_df = pd.DataFrame(cleared_items)[["Date", "Item_Name", "Category", "Amount", "Cleared_From_Account", "Cleared_At", "Note"]]
+            cleared_df.columns = ["วันที่รูด", "รายการ", "หมวดหมู่", "ยอดเงิน (฿)", "บัญชีที่โอนเคลียร์", "เวลาที่เคลียร์", "หมายเหตุ"]
+            st.dataframe(
+                cleared_df.style.format({"ยอดเงิน (฿)": "฿{:,.2f}"}),
+                use_container_width=True
+            )
+
+st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+# =============================================================
+# TAB 3: ACCOUNT LEDGERS & STATEMENTS
 # =============================================================
 with tab_ledgers:
     st.markdown("### 🏦 สมุดบัญชีและสเตทเมนต์รายบัญชี (Account Statements & Ledger)")
@@ -304,6 +449,18 @@ with tab_ledgers:
         options=config.ACCOUNT_NAMES,
         format_func=lambda x: f"{config.ACCOUNTS[x]['icon']} {config.ACCOUNTS[x]['name']} (คงเหลือ ฿{summary['accounts'][x]['current_balance']:,.2f})"
     )
+
+    acc_meta = config.ACCOUNTS[selected_account]
+    logo_html = ui_components.get_bank_logo_html(selected_account, size=28)
+    st.markdown(f"""
+    <div style="display:flex; align-items:center; gap:12px; margin: 10px 0 16px 0; padding: 12px 18px; background:#FFFFFF; border:1px solid #E2E8F0; border-radius:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+        {logo_html}
+        <div>
+            <div style="font-size:16px; font-weight:700; color:#0F172A;">{acc_meta['name']}</div>
+            <div style="font-size:12px; color:#64748B;">{acc_meta['role']} • ยอดคงเหลือปัจจุบัน: <b style="color:#2563EB;">฿{summary['accounts'][selected_account]['current_balance']:,.2f}</b></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     statement_df = engine.get_account_statement(selected_account)
     
@@ -507,14 +664,11 @@ with tab_settings:
             st.success("✅ อัปเดตยอดเงินเริ่มต้นและคำนวณยอดเงินคงเหลือปัจจุบันเรียบร้อย!")
             st.rerun()
 
-    with st.expander("🧹 จัดการล้างประวัติรายการธุรกรรม (Reset / Clear Transactions)"):
-        st.caption("หากต้องการล้างรายการทดสอบทั้งหมดออก แล้วเริ่มบันทึกใหม่จากยอดเงินเริ่มต้นปัจจุบัน")
-        if st.button("🗑️ ล้างรายการธุรกรรมทั้งหมด (Clear All Transactions)", type="secondary"):
-            with backend.db._get_connection() as conn:
-                conn.execute("DELETE FROM transactions")
-                conn.commit()
-            backend.recalculate_all_balances()
-            st.success("✅ ล้างรายการธุรกรรมทั้งหมดเรียบร้อย! ยอดคงเหลือกลับมาเท่ากับยอดเริ่มต้นพอดี")
+    with st.expander("🧹 จัดการล้างประวัติทั้งหมด & เริ่มต้นใหม่ (Reset All Data)"):
+        st.caption("ล้างรายการธุรกรรมและรายการค่าบัตรรอโอนทั้งหมดออก เพื่อเริ่มบันทึกใหม่จากยอดเงินเริ่มต้นปัจจุบัน")
+        if st.button("🗑️ ล้างรายการทั้งหมดและเริ่มใหม่ (Reset All Transactions & Pending CC)", type="secondary"):
+            backend.reset_all_data()
+            st.success("✅ ล้างรายการธุรกรรมและค่าบัตรรอโอนทั้งหมดเรียบร้อย! ยอดคงเหลือกลับมาเท่ากับยอดเริ่มต้นพอดี")
             st.rerun()
 
     st.markdown("---")

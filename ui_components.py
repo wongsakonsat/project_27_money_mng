@@ -3,11 +3,39 @@ UI Components & Custom Styling Module (Clean Minimalist White Theme)
 Clean, modern, high-contrast visual design with subtle accent indicators.
 """
 
+import base64
+import os
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import config
+
+_LOGO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo")
+_LOGO_MIME_BY_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+
+@st.cache_data
+def get_bank_logo_data_uri(account_name: str) -> str | None:
+    """Returns a base64 data: URI for the account's bank logo (logo/*.png|jpg), or None if missing."""
+    filename = config.ACCOUNTS.get(account_name, {}).get("logo")
+    if not filename:
+        return None
+    path = os.path.join(_LOGO_DIR, filename)
+    if not os.path.exists(path):
+        return None
+    mime = _LOGO_MIME_BY_EXT.get(os.path.splitext(filename)[1].lower(), "image/png")
+    with open(path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:{mime};base64,{encoded}"
+
+def get_bank_logo_html(account_name: str, size: int = 22) -> str:
+    """Returns HTML img element for bank logo, or fallback emoji icon."""
+    uri = get_bank_logo_data_uri(account_name)
+    if uri:
+        return f'<img class="bank-logo" src="{uri}" alt="{account_name}" style="width:{size}px; height:{size}px; border-radius:6px; vertical-align:middle; object-fit:cover; box-shadow:0 1px 2px rgba(0,0,0,0.08);">'
+    acc = config.ACCOUNTS.get(account_name, {})
+    return acc.get("icon", "🏦")
+
 
 CUSTOM_CSS = """
 <style>
@@ -127,6 +155,18 @@ html, body, [class*="css"], .stApp {
     font-weight: 600;
     font-size: 13.5px;
     color: #1E293B;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.bank-logo {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
 }
 
 .account-balance {
@@ -307,10 +347,12 @@ def render_account_cards(accounts_dict: dict):
     for i, (name, acc) in enumerate(accounts_dict.items()):
         with cols[i]:
             m = meta_map.get(name, {"color": "#2563EB", "tag": acc["type"], "bg": "#F1F5F9", "tc": "#475569"})
+            logo_uri = get_bank_logo_data_uri(name)
+            icon_html = f'<img class="bank-logo" src="{logo_uri}" alt="{name} logo">' if logo_uri else acc['icon']
             st.markdown(f"""
             <div class="account-card" style="border-top: 3px solid {m['color']};">
                 <div class="account-header">
-                    <span class="account-name">{acc['icon']} {acc['name']}</span>
+                    <span class="account-name">{icon_html} {acc['name']}</span>
                     <span class="badge-pill" style="background: {m['bg']}; color: {m['tc']}; font-size: 10px;">{m['tag']}</span>
                 </div>
                 <div class="account-balance">฿{acc['current_balance']:,.2f}</div>
@@ -423,3 +465,57 @@ def plot_category_spend_donut(cat_spend: dict):
         height=320
     )
     return fig
+
+def render_pending_cc_kpis(pending_summary: dict, accounts_summary: dict):
+    """Renders top metric cards for Pending CC Backing Tab."""
+    cols = st.columns(4)
+    total_unbacked = pending_summary["total_pending_amount"]
+    pending_count = pending_summary["pending_count"]
+    scb_bal = accounts_summary["scb_balance"]
+    tc_bal = accounts_summary["thai_credit_balance"]
+    kbank_bal = accounts_summary["kbank_balance"]
+
+    with cols[0]:
+        val_color = "#DC2626" if total_unbacked > 0 else "#059669"
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid {val_color};">
+            <div class="metric-label">🔴 ค่าบัตรรอโอนเข้า KBANK</div>
+            <div class="metric-value" style="color: {val_color};">฿{total_unbacked:,.2f}</div>
+            <div class="metric-sub {'danger' if total_unbacked > 0 else 'neutral'}">
+                {'⚠️ ต้องหาเงินมาโอนเข้า KBANK' if total_unbacked > 0 else '✅ ไม่มีค่าบัตรค้างโอน (ครบสมบูรณ์)'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[1]:
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #7C3AED;">
+            <div class="metric-label">⏳ รายการที่ยังค้าง</div>
+            <div class="metric-value">{pending_count} <span style="font-size: 15px; color: #64748B;">รายการ</span></div>
+            <div class="metric-sub neutral">เคลียร์แล้วทั้งหมด {pending_summary['cleared_count']} รายการ</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[2]:
+        logo_scb = get_bank_logo_html("SCB", 18)
+        can_cover_scb = scb_bal >= total_unbacked and total_unbacked > 0
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #7C3AED;">
+            <div class="metric-label">{logo_scb} ยอดพร้อมโอนใน SCB</div>
+            <div class="metric-value">฿{scb_bal:,.2f}</div>
+            <div class="metric-sub {'neutral' if can_cover_scb else 'warning'}">
+                {'✅ พอเคลียร์ยอดค้างทั้งหมด' if can_cover_scb else 'เงินในกระเป๋า SCB ปัจจุบัน'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cols[3]:
+        logo_kbank = get_bank_logo_html("KBANK", 18)
+        st.markdown(f"""
+        <div class="metric-card" style="border-top: 3px solid #059669;">
+            <div class="metric-label">{logo_kbank} ยอดสำรองใน KBANK</div>
+            <div class="metric-value">฿{kbank_bal:,.2f}</div>
+            <div class="metric-sub neutral">เงินสำรองพร้อมจ่ายบิลรอบนี้</div>
+        </div>
+        """, unsafe_allow_html=True)
+

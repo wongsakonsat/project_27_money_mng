@@ -5,4 +5,6 @@ bin/
 service_account.json
 current_url.txt
 data/test_*.db
+tests/*.db
 .env
+.pytest_cache/

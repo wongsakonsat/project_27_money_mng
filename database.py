@@ -72,6 +72,22 @@ class FinanceDatabase:
                 )
             """)
 
+            # Pending Credit Card Backing Table (รายการรูดบัตรที่รอโอนเงินเข้า KBANK)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pending_cc (
+                    pending_id TEXT PRIMARY KEY,
+                    date TEXT NOT NULL,
+                    item_name TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'Pending',
+                    cleared_at TEXT,
+                    cleared_from_account TEXT,
+                    note TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
             # Settings / Sync Config Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
@@ -277,6 +293,128 @@ class FinanceDatabase:
                       item.get("Priority", "Medium"), item.get("Status", "Pending"), float(item.get("Current_Saved", 0.0))))
             conn.commit()
 
+    # ------------------ PENDING CC BACKING (เงินค่าบัตรรอโอน) ------------------
+
+    def get_pending_cc(self, status: str | None = None) -> list[dict]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if status:
+                cursor.execute("""
+                    SELECT pending_id, date, item_name, category, amount, status, cleared_at, cleared_from_account, note, created_at
+                    FROM pending_cc
+                    WHERE status = ?
+                    ORDER BY date DESC, created_at DESC
+                """, (status,))
+            else:
+                cursor.execute("""
+                    SELECT pending_id, date, item_name, category, amount, status, cleared_at, cleared_from_account, note, created_at
+                    FROM pending_cc
+                    ORDER BY status ASC, date DESC, created_at DESC
+                """)
+            rows = cursor.fetchall()
+            return [
+                {
+                    "Pending_ID": r["pending_id"],
+                    "Date": r["date"],
+                    "Item_Name": r["item_name"],
+                    "Category": r["category"],
+                    "Amount": float(r["amount"]),
+                    "Status": r["status"],
+                    "Cleared_At": r["cleared_at"] or "",
+                    "Cleared_From_Account": r["cleared_from_account"] or "",
+                    "Note": r["note"] or "",
+                    "Created_At": r["created_at"]
+                }
+                for r in rows
+            ]
+
+    def add_pending_cc(self, date_val: str | date, item_name: str, category: str,
+                       amount: float, note: str = "") -> dict:
+        if isinstance(date_val, (datetime, date)):
+            date_str = date_val.strftime("%Y-%m-%d")
+        else:
+            date_str = str(date_val)
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        pending_id = f"PCC-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO pending_cc (pending_id, date, item_name, category, amount, status, note, created_at)
+                VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
+            """, (pending_id, date_str, item_name, category, float(amount), note, now_str))
+            conn.commit()
+
+        return {
+            "Pending_ID": pending_id,
+            "Date": date_str,
+            "Item_Name": item_name,
+            "Category": category,
+            "Amount": float(amount),
+            "Status": "Pending",
+            "Cleared_At": "",
+            "Cleared_From_Account": "",
+            "Note": note,
+            "Created_At": now_str
+        }
+
+    def clear_pending_cc(self, pending_id: str, from_account: str = "SCB") -> dict | None:
+        """Transfers cash from from_account to KBANK and marks pending item as Cleared."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM pending_cc WHERE pending_id = ?", (pending_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            amount = float(row["amount"])
+            item_name = row["item_name"]
+            cat = row["category"]
+            note = row["note"] or ""
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Mark as cleared
+            cursor.execute("""
+                UPDATE pending_cc
+                SET status = 'Cleared', cleared_at = ?, cleared_from_account = ?
+                WHERE pending_id = ?
+            """, (now_str, from_account, pending_id))
+            conn.commit()
+
+        # Add double-entry transfer transaction from from_account -> KBANK
+        tx = self.add_transaction(
+            date_val=date.today(),
+            tx_type="Internal_Transfer",
+            from_account=from_account,
+            to_account="KBANK",
+            category=cat,
+            amount=amount,
+            note=f"เคลียร์ค่าบัตรรอโอน: {item_name}" + (f" ({note})" if note else "")
+        )
+        return tx
+
+    def delete_pending_cc(self, pending_id: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pending_cc WHERE pending_id = ?", (pending_id,))
+            deleted = cursor.rowcount > 0
+            conn.commit()
+        return deleted
+
+    def reset_all_data(self, initial_balances: dict[str, float] | None = None):
+        """Resets all transactions and pending CC records, and optionally updates initial balances."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM transactions")
+            cursor.execute("DELETE FROM pending_cc")
+            conn.commit()
+
+        if initial_balances:
+            self.update_initial_balances(initial_balances)
+        else:
+            self.recalculate_all_balances()
+
     # ------------------ SETTINGS ------------------
 
     def get_setting(self, key: str, default: str = "") -> str:
@@ -295,3 +433,4 @@ class FinanceDatabase:
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
             """, (key, value))
             conn.commit()
+

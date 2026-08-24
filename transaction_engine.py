@@ -300,3 +300,22 @@ class TransactionEngine:
             amount=amount,
             note="💰 เงินเดือนเข้าบัญชีหลัก Thai Credit (Monthly Salary Inflow)"
         )
+
+    def get_pending_cc_summary(self) -> dict:
+        """
+        Returns summary of pending credit card items waiting to be backed up to KBANK.
+        """
+        pending_items = self.backend.get_pending_cc(status="Pending")
+        total_pending = sum(item["Amount"] for item in pending_items)
+        cleared_items = self.backend.get_pending_cc(status="Cleared")
+        total_cleared = sum(item["Amount"] for item in cleared_items)
+
+        return {
+            "pending_items": pending_items,
+            "total_pending_amount": total_pending,
+            "pending_count": len(pending_items),
+            "cleared_items": cleared_items,
+            "total_cleared_amount": total_cleared,
+            "cleared_count": len(cleared_items)
+        }
+

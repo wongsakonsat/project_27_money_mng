@@ -1,123 +1,193 @@
 """
-Unit Tests for Personal Finance Management System
-Tests cycle math, double-entry ledger reconciliation, and burn-rate pacing.
+Pytest suite for the Personal Finance Management System.
+Covers cycle math, double-entry ledger reconciliation, and burn-rate pacing.
+
+Run with:  pytest tests/
 """
 
 import os
 import sys
-import shutil
 from datetime import date
 
 # Add parent directory to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import config
+import pytest
+
 from cycle_utils import get_cycle_for_date, get_current_cycle_info, calculate_food_burn_metrics
 from backend import FinanceBackend
 from transaction_engine import TransactionEngine
 
-def test_cycle_boundaries():
-    print("Testing cycle boundaries...")
-    # Date on 23rd August -> cycle is 23 Aug to 22 Sep
-    c_id, s_date, e_date, label = get_cycle_for_date(date(2026, 8, 23))
-    assert s_date == date(2026, 8, 23), f"Expected 2026-08-23, got {s_date}"
-    assert e_date == date(2026, 9, 22), f"Expected 2026-09-22, got {e_date}"
 
-    # Date on 22nd August -> cycle is 23 Jul to 22 Aug
-    c_id2, s_date2, e_date2, label2 = get_cycle_for_date(date(2026, 8, 22))
-    assert s_date2 == date(2026, 7, 23), f"Expected 2026-07-23, got {s_date2}"
-    assert e_date2 == date(2026, 8, 22), f"Expected 2026-08-22, got {e_date2}"
-
-    # Date on 1st January -> cycle is 23 Dec (prev year) to 22 Jan
-    c_id3, s_date3, e_date3, label3 = get_cycle_for_date(date(2027, 1, 1))
-    assert s_date3 == date(2026, 12, 23), f"Expected 2026-12-23, got {s_date3}"
-    assert e_date3 == date(2027, 1, 22), f"Expected 2027-01-22, got {e_date3}"
-    print("✅ Cycle boundary tests passed!")
-
-def test_double_entry_and_balances():
-    print("Testing double-entry engine and initial balances...")
-    test_db_path = os.path.join(os.path.dirname(__file__), "test_finance.db")
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
-    
-    from database import FinanceDatabase
-    test_db = FinanceDatabase(db_path=test_db_path)
-    
-    # Custom test backend with isolated DB
-    backend = FinanceBackend()
-    backend.db = test_db
-    engine = TransactionEngine(backend)
-
-    # Set custom initial leftover balances
-    custom_inits = {
+@pytest.fixture
+def engine(tmp_path):
+    """A TransactionEngine backed by an isolated, throwaway SQLite file.
+    No network calls, no shared state with the real app database."""
+    db_path = str(tmp_path / "test_finance.db")
+    backend = FinanceBackend(db_path=db_path, skip_remote_connect=True)
+    backend.update_initial_balances({
         "Thai Credit": 10000.0,
         "SCB": 2000.0,
         "KBANK": 1500.0,
-        "BAY": 40000.0
-    }
-    backend.update_initial_balances(custom_inits)
-    
-    summary0 = engine.get_accounts_summary()
-    assert summary0["thai_credit_balance"] == 10000.0
-    assert summary0["scb_balance"] == 2000.0
-    assert summary0["kbank_balance"] == 1500.0
-    assert summary0["bay_balance"] == 40000.0
-    assert summary0["total_net_worth"] == 53500.0
+        "BAY": 40000.0,
+    })
+    return TransactionEngine(backend)
 
-    # 1. Macro Salary Inflow: +43,000 to Thai Credit
-    tx_salary = engine.macro_salary_income(amount=43000.0)
-    summary1 = engine.get_accounts_summary()
-    assert summary1["thai_credit_balance"] == 53000.0
 
-    # 2. Macro Weekly Allowance: Thai Credit -> SCB 3,150
-    tx_weekly = engine.macro_weekly_allowance()
-    summary2 = engine.get_accounts_summary()
-    assert summary2["thai_credit_balance"] == 53000.0 - 3150.0 # 49850.0
-    assert summary2["scb_balance"] == 2000.0 + 3150.0 # 5150.0
+class TestCycleBoundaries:
+    def test_cycle_starts_on_23rd(self):
+        _, start, end, _ = get_cycle_for_date(date(2026, 8, 23))
+        assert start == date(2026, 8, 23)
+        assert end == date(2026, 9, 22)
 
-    # 3. Food Expense from SCB: 350
-    tx_food = backend.add_transaction(
-        date_val=date.today(),
-        tx_type="Expense",
-        from_account="SCB",
-        to_account=None,
-        category="Food_Daily",
-        amount=350.0,
-        note="Lunch"
-    )
-    summary3 = engine.get_accounts_summary()
-    assert summary3["scb_balance"] == 5150.0 - 350.0 # 4800.0
+    def test_cycle_just_before_23rd_belongs_to_previous_month(self):
+        _, start, end, _ = get_cycle_for_date(date(2026, 8, 22))
+        assert start == date(2026, 7, 23)
+        assert end == date(2026, 8, 22)
 
-    # 4. Transit Swipe: SCB -> KBANK 700
-    tx_transit = engine.macro_transit_swipe()
-    summary4 = engine.get_accounts_summary()
-    assert summary4["scb_balance"] == 4800.0 - 700.0 # 4100.0
-    assert summary4["kbank_balance"] == 1500.0 + 700.0 # 2200.0
+    def test_cycle_wraps_across_year_boundary(self):
+        _, start, end, _ = get_cycle_for_date(date(2027, 1, 1))
+        assert start == date(2026, 12, 23)
+        assert end == date(2027, 1, 22)
 
-    # 5. Insurance Sinking Transfer: Thai Credit -> BAY 3,500
-    tx_ins = engine.macro_insurance_sinking()
-    summary5 = engine.get_accounts_summary()
-    assert summary5["thai_credit_balance"] == 49850.0 - 3500.0 # 46350.0
-    assert summary5["bay_balance"] == 40000.0 + 3500.0 # 43500.0
 
-    # Verify statement generation
-    stmt_scb = engine.get_account_statement("SCB")
-    assert not stmt_scb.empty
-    assert len(stmt_scb) >= 3
+class TestDoubleEntryLedger:
+    def test_initial_balances_seed_correctly(self, engine):
+        summary = engine.get_accounts_summary()
+        assert summary["thai_credit_balance"] == 10000.0
+        assert summary["scb_balance"] == 2000.0
+        assert summary["kbank_balance"] == 1500.0
+        assert summary["bay_balance"] == 40000.0
+        assert summary["total_net_worth"] == 53500.0
 
-    print("✅ Double-entry transactions and statements tests passed!")
+    def test_salary_income_credits_thai_credit(self, engine):
+        engine.macro_salary_income(amount=43000.0)
+        summary = engine.get_accounts_summary()
+        assert summary["thai_credit_balance"] == 53000.0
 
-def test_burn_rate_metrics():
-    print("Testing dynamic food burn rate metrics...")
-    cycle_info = get_current_cycle_info()
-    metrics = calculate_food_burn_metrics(spent_food=1050.0, cycle_info=cycle_info, base_daily_budget=350.0)
-    assert metrics["spent_food"] == 1050.0
-    assert metrics["remaining_budget"] > 0
-    assert metrics["dynamic_daily_allowance"] > 0
-    print("✅ Burn rate metrics passed!")
+    def test_weekly_allowance_transfers_thai_credit_to_scb(self, engine):
+        engine.macro_salary_income(amount=43000.0)
+        engine.macro_weekly_allowance()
+        summary = engine.get_accounts_summary()
+        assert summary["thai_credit_balance"] == 53000.0 - 3150.0
+        assert summary["scb_balance"] == 2000.0 + 3150.0
 
-if __name__ == "__main__":
-    test_cycle_boundaries()
-    test_double_entry_and_balances()
-    test_burn_rate_metrics()
-    print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
+    def test_expense_debits_source_account(self, engine):
+        engine.backend.add_transaction(
+            date_val=date.today(),
+            tx_type="Expense",
+            from_account="SCB",
+            to_account=None,
+            category="Food_Daily",
+            amount=350.0,
+            note="Lunch",
+        )
+        summary = engine.get_accounts_summary()
+        assert summary["scb_balance"] == 2000.0 - 350.0
+
+    def test_transit_swipe_moves_scb_to_kbank(self, engine):
+        engine.macro_transit_swipe()
+        summary = engine.get_accounts_summary()
+        assert summary["scb_balance"] == 2000.0 - 700.0
+        assert summary["kbank_balance"] == 1500.0 + 700.0
+
+    def test_insurance_sinking_moves_thai_credit_to_bay(self, engine):
+        engine.macro_insurance_sinking()
+        summary = engine.get_accounts_summary()
+        assert summary["thai_credit_balance"] == 10000.0 - 3500.0
+        assert summary["bay_balance"] == 40000.0 + 3500.0
+
+    def test_account_statement_records_every_transaction(self, engine):
+        engine.macro_salary_income(amount=43000.0)
+        engine.macro_weekly_allowance()
+        engine.macro_transit_swipe()
+        stmt_scb = engine.get_account_statement("SCB")
+        assert not stmt_scb.empty
+        assert len(stmt_scb) >= 2  # weekly allowance in + transit swipe out
+
+    def test_deleting_a_transaction_reverts_its_balance_effect(self, engine):
+        tx = engine.backend.add_transaction(
+            date_val=date.today(),
+            tx_type="Expense",
+            from_account="SCB",
+            to_account=None,
+            category="Food_Daily",
+            amount=350.0,
+            note="Lunch",
+        )
+        assert engine.get_accounts_summary()["scb_balance"] == 2000.0 - 350.0
+
+        engine.backend.delete_transaction(tx["Transaction_ID"])
+        assert engine.get_accounts_summary()["scb_balance"] == 2000.0
+
+
+class TestBurnRateMetrics:
+    def test_remaining_budget_and_allowance_are_positive_when_under_budget(self):
+        cycle_info = get_current_cycle_info()
+        metrics = calculate_food_burn_metrics(spent_food=1050.0, cycle_info=cycle_info, base_daily_budget=350.0)
+        assert metrics["spent_food"] == 1050.0
+        assert metrics["remaining_budget"] > 0
+        assert metrics["dynamic_daily_allowance"] > 0
+
+    def test_overspending_flips_status_to_over_pace(self):
+        cycle_info = get_current_cycle_info(as_of_date=date(2026, 8, 1))  # day 10 of the 23rd-22nd cycle
+        metrics = calculate_food_burn_metrics(spent_food=100000.0, cycle_info=cycle_info, base_daily_budget=350.0)
+        assert metrics["pace_diff"] > 350
+        assert "Over Pace" in metrics["status_text"]
+
+
+class TestPendingCreditCard:
+    def test_add_and_get_pending_cc(self, engine):
+        item = engine.backend.add_pending_cc(
+            date_val=date(2026, 8, 24),
+            item_name="Dinner with Team",
+            category="Special_Meal",
+            amount=600.0,
+            note="Forgot to transfer"
+        )
+        assert item["Item_Name"] == "Dinner with Team"
+        assert item["Amount"] == 600.0
+        assert item["Status"] == "Pending"
+
+        summary = engine.get_pending_cc_summary()
+        assert summary["total_pending_amount"] == 600.0
+        assert summary["pending_count"] == 1
+
+    def test_clear_pending_cc_creates_transfer_to_kbank(self, engine):
+        item = engine.backend.add_pending_cc(
+            date_val=date(2026, 8, 24),
+            item_name="Shopping Shoes",
+            category="Wishlist_Hobby",
+            amount=1500.0
+        )
+        init_scb = engine.get_accounts_summary()["scb_balance"]
+        init_kbank = engine.get_accounts_summary()["kbank_balance"]
+
+        # Clear from SCB -> KBANK
+        tx = engine.backend.clear_pending_cc(item["Pending_ID"], from_account="SCB")
+        assert tx is not None
+        assert tx["Type"] == "Internal_Transfer"
+        assert tx["From_Account"] == "SCB"
+        assert tx["To_Account"] == "KBANK"
+        assert tx["Amount"] == 1500.0
+
+        summary = engine.get_accounts_summary()
+        assert summary["scb_balance"] == init_scb - 1500.0
+        assert summary["kbank_balance"] == init_kbank + 1500.0
+
+        p_summary = engine.get_pending_cc_summary()
+        assert p_summary["pending_count"] == 0
+        assert p_summary["cleared_count"] == 1
+
+    def test_delete_pending_cc(self, engine):
+        item = engine.backend.add_pending_cc(
+            date_val=date(2026, 8, 24),
+            item_name="Mistake Entry",
+            category="Other",
+            amount=100.0
+        )
+        assert engine.get_pending_cc_summary()["pending_count"] == 1
+        deleted = engine.backend.delete_pending_cc(item["Pending_ID"])
+        assert deleted is True
+        assert engine.get_pending_cc_summary()["pending_count"] == 0
+
