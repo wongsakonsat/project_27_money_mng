@@ -261,4 +261,12 @@ class FinanceBackend:
                 print(f"Non-blocking webhook push error: {e}")
         return tx
 
+    # ------------------ CYCLE PLANS PASS-THROUGHS ------------------
+
+    def get_cycle_plan(self, cycle_id: str) -> dict:
+        return self.db.get_cycle_plan(cycle_id)
+
+    def save_cycle_plan(self, cycle_id: str, planned_income: float, target_surplus: float, note: str = "") -> bool:
+        return self.db.save_cycle_plan(cycle_id, planned_income, target_surplus, note)
+
 

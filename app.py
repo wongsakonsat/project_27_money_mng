@@ -266,14 +266,86 @@ with tab_dash:
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
 
-    # Charts Row: Food Burn Rate & Category Donut
+    # Charts Row: Switcher between Food Pacing vs Monthly Expense & Surplus Tracker
+    st.markdown("#### 📈 แทรคสถานะการเงิน & ความเร็วการใช้จ่าย (Financial Burn & Pacing)")
+    
+    track_view = st.radio(
+        "เลือกมุมมองการแทรค (Select Tracker View):",
+        options=["🍚 แทรคงบอาหารประจำวัน (Daily Food Pacing)", "📊 แทรคภาพรวมค่าใช้จ่าย & เป้าหมายเงินเหลือ (Monthly Expense & Surplus Target)"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
     col_chart1, col_chart2 = st.columns([3, 2])
     
+    transactions = backend.get_transactions()
+    cycle_plan = backend.get_cycle_plan(cycle_info["cycle_id"])
+
     with col_chart1:
-        transactions = backend.get_transactions()
-        food_chart = ui_components.plot_daily_food_burn_chart(cycle_info, cycle_analytics["food_metrics"], transactions)
-        st.plotly_chart(food_chart, use_container_width=True)
-        
+        if "Food Pacing" in track_view:
+            food_chart = ui_components.plot_daily_food_burn_chart(cycle_info, cycle_analytics["food_metrics"], transactions)
+            st.plotly_chart(food_chart, use_container_width=True)
+        else:
+            monthly_tracker_res = ui_components.plot_monthly_expense_surplus_tracker(
+                cycle_info, cycle_plan, transactions, cycle_analytics
+            )
+            st.plotly_chart(monthly_tracker_res["fig"], use_container_width=True)
+            
+            # Mini KPI indicators for Monthly Plan
+            p_inc = monthly_tracker_res["planned_income"]
+            t_sur = monthly_tracker_res["target_surplus"]
+            p_exp = monthly_tracker_res["planned_expense"]
+            c_tot = monthly_tracker_res["current_actual_total"]
+            proj_sur = monthly_tracker_res["projected_surplus"]
+            
+            status_color = "#059669" if proj_sur >= t_sur else ("#D97706" if proj_sur >= 0 else "#DC2626")
+            status_badge = "🟢 เป็นไปตามเป้าหมาย (On Track)" if proj_sur >= t_sur else ("🟡 ใช้จ่ายเร็วกว่าแผนเล็กน้อย" if proj_sur >= 0 else "🔴 เสี่ยงติดลบ")
+            
+            st.markdown(f"""
+            <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 10px; padding: 12px 16px; margin-top: -10px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <div style="font-size: 11.5px; color: #64748B; text-transform: uppercase;">💰 เงินเข้าตามแผนงวดนี้</div>
+                        <div style="font-size: 15px; font-weight: 700; color: #0F172A;">฿{p_inc:,.2f}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11.5px; color: #64748B; text-transform: uppercase;">🎯 เป้าหมายเงินเหลือสิ้นเดือน</div>
+                        <div style="font-size: 15px; font-weight: 700; color: #2563EB;">฿{t_sur:,.2f}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11.5px; color: #64748B; text-transform: uppercase;">💸 จ่ายสะสมถึงวันนี้</div>
+                        <div style="font-size: 15px; font-weight: 700; color: #475569;">฿{c_tot:,.2f} / {p_exp:,.0f}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11.5px; color: #64748B; text-transform: uppercase;">🔮 ประมาณการเงินเหลือสิ้นเดือน</div>
+                        <div style="font-size: 15px; font-weight: 700; color: {status_color};">฿{proj_sur:,.2f} ({status_badge})</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Interactive Plan Editor Expander
+            with st.expander("⚙️ ปรับแผนเงินเข้า & เป้าหมายเงินเหลือสำหรับงวดนี้ (Edit Monthly Plan)"):
+                col_pl1, col_pl2 = st.columns(2)
+                with col_pl1:
+                    new_planned_inc = st.number_input(
+                        "💰 เงินเดือน / เงินเข้าเดือนนี้ (Planned Inflow THB):",
+                        min_value=1000.0, step=1000.0,
+                        value=float(p_inc), format="%.2f"
+                    )
+                with col_pl2:
+                    new_target_sur = st.number_input(
+                        "🎯 เป้าหมายเงินเหลือสุทธิสิ้นเดือน (Target Surplus THB):",
+                        min_value=0.0, step=500.0,
+                        value=float(t_sur), format="%.2f"
+                    )
+                plan_note = st.text_input("📝 บันทึกแผนงวดนี้ (Note / Context):", value=cycle_plan.get("note", ""))
+                
+                if st.button("💾 บันทึกแผนงวดนี้ (Save Cycle Plan)", type="primary"):
+                    backend.save_cycle_plan(cycle_info["cycle_id"], new_planned_inc, new_target_sur, plan_note)
+                    st.success("✅ บันทึกแผนการเงินประจำงวดเรียบร้อยแล้ว!")
+                    st.rerun()
+
     with col_chart2:
         donut_chart = ui_components.plot_category_spend_donut(cycle_analytics["category_spend"])
         st.plotly_chart(donut_chart, use_container_width=True)

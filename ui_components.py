@@ -466,6 +466,124 @@ def plot_daily_food_burn_chart(cycle_info: dict, food_metrics: dict, transaction
     )
     return fig
 
+def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, transactions: list[dict], cycle_analytics: dict):
+    """
+    Plots the monthly total expense burn-up vs planned expense ceiling,
+    tracking whether the user will reach their target end-of-month surplus.
+    """
+    start_d = datetime.strptime(cycle_info["start_date"], "%Y-%m-%d").date()
+    end_d = datetime.strptime(cycle_info["end_date"], "%Y-%m-%d").date()
+    today_d = cycle_info["as_of_date"]
+    
+    total_days = cycle_info["total_days"]
+    days_elapsed = cycle_info["days_elapsed"]
+    days_remaining = cycle_info["days_remaining"]
+    
+    planned_income = float(cycle_plan.get("planned_income", 45000.0))
+    target_surplus = float(cycle_plan.get("target_surplus", 1516.90))
+    planned_expense = max(0.0, planned_income - target_surplus)
+    
+    # Generate list of dates
+    dates = [start_d + timedelta(days=i) for i in range((end_d - start_d).days + 1)]
+    
+    # Group actual expenses and commitments by date in this cycle
+    actual_spent_by_date = {d: 0.0 for d in dates}
+    if transactions:
+        tx_df = pd.DataFrame(transactions)
+        if not tx_df.empty and "Cycle" in tx_df.columns:
+            target_cycle_id = cycle_info["cycle_id"]
+            c_txs = tx_df[tx_df["Cycle"] == target_cycle_id]
+            
+            for _, r in c_txs.iterrows():
+                try:
+                    d_obj = datetime.strptime(str(r["Date"])[:10], "%Y-%m-%d").date()
+                    if d_obj in actual_spent_by_date:
+                        tx_type = r.get("Type")
+                        cat = r.get("Category")
+                        amt = float(r.get("Amount", 0.0))
+                        
+                        if tx_type == "Expense":
+                            actual_spent_by_date[d_obj] += amt
+                        elif tx_type == "Internal_Transfer" and r.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
+                            actual_spent_by_date[d_obj] += amt
+                except:
+                    pass
+                    
+    # Build planned curve (linear pacing) vs actual cumulative
+    planned_cumulative = []
+    actual_cumulative = []
+    running_actual = 0.0
+    
+    for idx, d in enumerate(dates):
+        # Planned linear trajectory
+        p_val = ((idx + 1) / len(dates)) * planned_expense
+        planned_cumulative.append(p_val)
+        
+        if d <= today_d:
+            running_actual += actual_spent_by_date.get(d, 0.0)
+            actual_cumulative.append(running_actual)
+        else:
+            actual_cumulative.append(None)
+            
+    current_actual_total = running_actual
+    expected_pace_today = (days_elapsed / total_days) * planned_expense if total_days > 0 else 0.0
+    pace_diff = current_actual_total - expected_pace_today
+    
+    # Projected end-of-month surplus
+    if days_elapsed > 0:
+        daily_burn_rate = current_actual_total / days_elapsed
+        projected_total_expense = current_actual_total + (daily_burn_rate * days_remaining)
+        projected_surplus = planned_income - projected_total_expense
+    else:
+        projected_surplus = target_surplus
+
+    fig = go.Figure()
+    
+    # Planned Expense Ceiling Trajectory
+    fig.add_trace(go.Scatter(
+        x=[d.strftime("%d %b") for d in dates],
+        y=planned_cumulative,
+        mode="lines",
+        name=f"เพดานงบตามแผน (เป้าเหลือ ฿{target_surplus:,.0f})",
+        line=dict(color="#64748B", width=1.8, dash="dash")
+    ))
+    
+    # Actual Total Outflow
+    line_color = "#DC2626" if pace_diff > (planned_expense * 0.1) else "#2563EB"
+    fig.add_trace(go.Scatter(
+        x=[d.strftime("%d %b") for d in dates],
+        y=actual_cumulative,
+        mode="lines+markers",
+        name="จ่ายสะสมจริง (Actual Outflow)",
+        line=dict(color=line_color, width=2.5),
+        marker=dict(size=6, color=line_color),
+        fill="tozeroy",
+        fillcolor="rgba(37, 99, 235, 0.04)"
+    ))
+    
+    fig.update_layout(
+        title="📊 แทรคภาพรวมค่าใช้จ่าย & การคุมเป้าหมายเงินเหลือประจำงวด",
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#FFFFFF",
+        font=dict(color="#334155", family="Prompt, Inter", size=12),
+        margin=dict(l=20, r=20, t=50, b=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0"),
+        yaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0", title="ยอดใช้จ่ายสะสม (THB)"),
+        height=320
+    )
+    
+    return {
+        "fig": fig,
+        "planned_income": planned_income,
+        "target_surplus": target_surplus,
+        "planned_expense": planned_expense,
+        "current_actual_total": current_actual_total,
+        "expected_pace_today": expected_pace_today,
+        "pace_diff": pace_diff,
+        "projected_surplus": projected_surplus
+    }
+
 def plot_category_spend_donut(cat_spend: dict):
     """Plots clean donut chart of expenses by category."""
     data = []

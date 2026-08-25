@@ -110,6 +110,18 @@ class FinanceDatabase:
                 )
             """)
 
+            # Monthly Cycle Plans Table (แผนรายรับเป้าหมาย & เงินเหลือประจำงวด)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cycle_plans (
+                    cycle_id TEXT PRIMARY KEY,
+                    planned_income REAL NOT NULL,
+                    target_surplus REAL NOT NULL,
+                    planned_expense REAL NOT NULL,
+                    note TEXT,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
             # Seed default accounts if empty
             cursor.execute("SELECT COUNT(*) FROM accounts")
             if cursor.fetchone()[0] == 0:
@@ -541,4 +553,47 @@ class FinanceDatabase:
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
             """, (key, value))
             conn.commit()
+
+    # ------------------ CYCLE PLANS ------------------
+
+    def get_cycle_plan(self, cycle_id: str) -> dict:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT cycle_id, planned_income, target_surplus, planned_expense, note FROM cycle_plans WHERE cycle_id = ?", (cycle_id,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "cycle_id": row["cycle_id"],
+                    "planned_income": float(row["planned_income"]),
+                    "target_surplus": float(row["target_surplus"]),
+                    "planned_expense": float(row["planned_expense"]),
+                    "note": row["note"] or ""
+                }
+            else:
+                # Default calculation for this cycle
+                return {
+                    "cycle_id": cycle_id,
+                    "planned_income": 45000.0,
+                    "target_surplus": 1516.90,
+                    "planned_expense": 43483.10,
+                    "note": "เป้าหมายงวดนี้ (หักค่าทำบ้าน 6k + น้ำหอม 2.48k + fixed costs)"
+                }
+
+    def save_cycle_plan(self, cycle_id: str, planned_income: float, target_surplus: float, note: str = "") -> bool:
+        planned_expense = max(0.0, float(planned_income) - float(target_surplus))
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO cycle_plans (cycle_id, planned_income, target_surplus, planned_expense, note, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(cycle_id) DO UPDATE SET
+                    planned_income = excluded.planned_income,
+                    target_surplus = excluded.target_surplus,
+                    planned_expense = excluded.planned_expense,
+                    note = excluded.note,
+                    updated_at = excluded.updated_at
+            """, (cycle_id, float(planned_income), float(target_surplus), planned_expense, note, now_str))
+            conn.commit()
+        return True
 
