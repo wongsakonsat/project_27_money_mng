@@ -5,7 +5,7 @@ Clean, modern, high-contrast visual design with subtle accent indicators.
 
 import base64
 import os
-from datetime import date
+from datetime import date, datetime, timedelta
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
@@ -471,32 +471,62 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
     Plots the monthly total expense burn-up vs planned expense ceiling,
     tracking whether the user will reach their target end-of-month surplus.
     """
-    start_d = datetime.strptime(cycle_info["start_date"], "%Y-%m-%d").date()
-    end_d = datetime.strptime(cycle_info["end_date"], "%Y-%m-%d").date()
-    today_d = cycle_info["as_of_date"]
+    start_val = cycle_info.get("start_date")
+    try:
+        if isinstance(start_val, (datetime, date)):
+            start_d = start_val if isinstance(start_val, date) else start_val.date()
+        else:
+            start_d = datetime.strptime(str(start_val)[:10], "%Y-%m-%d").date()
+    except Exception:
+        start_d = date.today()
+
+    end_val = cycle_info.get("end_date")
+    try:
+        if isinstance(end_val, (datetime, date)):
+            end_d = end_val if isinstance(end_val, date) else end_val.date()
+        else:
+            end_d = datetime.strptime(str(end_val)[:10], "%Y-%m-%d").date()
+    except Exception:
+        end_d = start_d + timedelta(days=30)
+
+    as_of_val = cycle_info.get("as_of_date")
+    try:
+        if isinstance(as_of_val, (datetime, date)):
+            today_d = as_of_val if isinstance(as_of_val, date) else as_of_val.date()
+        elif isinstance(as_of_val, str) and len(as_of_val) >= 10 and as_of_val[:4].isdigit():
+            today_d = datetime.strptime(as_of_val[:10], "%Y-%m-%d").date()
+        else:
+            today_d = date.today()
+    except Exception:
+        today_d = date.today()
     
-    total_days = cycle_info["total_days"]
-    days_elapsed = cycle_info["days_elapsed"]
-    days_remaining = cycle_info["days_remaining"]
+    total_days = cycle_info.get("total_days", max(1, (end_d - start_d).days + 1))
+    days_elapsed = cycle_info.get("days_elapsed", max(1, (today_d - start_d).days + 1))
+    days_remaining = cycle_info.get("days_remaining", max(0, (end_d - today_d).days))
     
     planned_income = float(cycle_plan.get("planned_income", 45000.0))
     target_surplus = float(cycle_plan.get("target_surplus", 1516.90))
     planned_expense = max(0.0, planned_income - target_surplus)
     
     # Generate list of dates
-    dates = [start_d + timedelta(days=i) for i in range((end_d - start_d).days + 1)]
+    num_days = max(1, (end_d - start_d).days + 1)
+    dates = [start_d + timedelta(days=i) for i in range(num_days)]
     
     # Group actual expenses and commitments by date in this cycle
     actual_spent_by_date = {d: 0.0 for d in dates}
     if transactions:
         tx_df = pd.DataFrame(transactions)
-        if not tx_df.empty and "Cycle" in tx_df.columns:
-            target_cycle_id = cycle_info["cycle_id"]
-            c_txs = tx_df[tx_df["Cycle"] == target_cycle_id]
-            
-            for _, r in c_txs.iterrows():
+        if not tx_df.empty and "Category" in tx_df.columns:
+            for _, r in tx_df.iterrows():
                 try:
-                    d_obj = datetime.strptime(str(r["Date"])[:10], "%Y-%m-%d").date()
+                    d_raw = r.get("Date")
+                    if isinstance(d_raw, str):
+                        d_obj = datetime.strptime(str(d_raw)[:10], "%Y-%m-%d").date()
+                    elif isinstance(d_raw, (datetime, date)):
+                        d_obj = d_raw if isinstance(d_raw, date) else d_raw.date()
+                    else:
+                        continue
+                    
                     if d_obj in actual_spent_by_date:
                         tx_type = r.get("Type")
                         cat = r.get("Category")
@@ -529,13 +559,23 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
     expected_pace_today = (days_elapsed / total_days) * planned_expense if total_days > 0 else 0.0
     pace_diff = current_actual_total - expected_pace_today
     
-    # Projected end-of-month surplus
-    if days_elapsed > 0:
-        daily_burn_rate = current_actual_total / days_elapsed
-        projected_total_expense = current_actual_total + (daily_burn_rate * days_remaining)
-        projected_surplus = planned_income - projected_total_expense
-    else:
-        projected_surplus = target_surplus
+    # Smart projection of remaining spend in cycle:
+    daily_living_rate = float(config.BUDGET_RULES["Daily Living (SCB Weekly Disbursed)"]["Daily Food Baseline"]) + (float(config.BUDGET_RULES["Daily Living (SCB Weekly Disbursed)"]["Transit Baseline"]) / 7.0)
+    remaining_living_projected = max(0, days_remaining) * daily_living_rate
+    
+    # Remaining unpaid fixed commitments in cycle
+    fixed_status = cycle_analytics.get("fixed_status", {})
+    remaining_fixed = 0.0
+    for k, v in fixed_status.items():
+        if not v.get("done", False):
+            remaining_fixed += max(0.0, float(v.get("budget", 0.0)) - float(v.get("spent", 0.0)))
+            
+    ins_status = cycle_analytics.get("insurance_status", {})
+    if not ins_status.get("done", False):
+        remaining_fixed += max(0.0, float(ins_status.get("budget", 3500.0)) - float(ins_status.get("funded", 0.0)))
+        
+    projected_total_expense = current_actual_total + remaining_living_projected + remaining_fixed
+    projected_surplus = planned_income - projected_total_expense
 
     fig = go.Figure()
     
