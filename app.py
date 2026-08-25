@@ -52,14 +52,14 @@ with st.sidebar:
     st.markdown("### ⚡ Fast Macros (ปุ่มลัดอัตโนมัติ)")
     
     with st.expander("🚀 ดำเนินการประจำสัปดาห์ / เดือน", expanded=True):
-        if st.button("⚡ จัดสรรงบสัปดาห์ (3,150฿)\nThai Credit ➡️ SCB", use_container_width=True):
+        if st.button("⚡ จัดสรรงบสัปดาห์ (3,450฿)\nThai Credit ➡️ SCB", use_container_width=True):
             engine.macro_weekly_allowance()
-            st.success("✅ โอนงบสัปดาห์ 3,150฿ (อาหาร 2,450 + เดินทาง 700) เรียบร้อย!")
+            st.success("✅ โอนงบสัปดาห์ 3,450฿ (อาหาร 2,450 + เดินทาง 1,000) เรียบร้อย!")
             st.rerun()
 
-        if st.button("🚆 แตะบัตรเดินทาง BTS/MRT (700฿)\nSCB ➡️ KBANK", use_container_width=True):
+        if st.button("🚆 แตะบัตรเดินทาง BTS/MRT (1,000฿)\nSCB ➡️ KBANK", use_container_width=True):
             engine.macro_transit_swipe()
-            st.success("✅ สำรองเงินค่าเดินทางเข้า KBANK 700฿ (Zero CC Debt) เรียบร้อย!")
+            st.success("✅ สำรองเงินค่าเดินทางเข้า KBANK 1,000฿ (Zero CC Debt) เรียบร้อย!")
             st.rerun()
 
         kbank_current_buffer = summary.get("kbank_balance", 0.0)
@@ -891,7 +891,7 @@ with tab_settings:
                 f"💜 SCB (Daily Spending Wallet) - เงินต้นเริ่มต้น (THB)",
                 min_value=0.0,
                 step=100.0,
-                value=acc_initials.get("SCB", 3150.0),
+                value=acc_initials.get("SCB", 3450.0),
                 format="%.2f"
             )
         with col_i2:

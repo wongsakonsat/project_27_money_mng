@@ -738,7 +738,7 @@ def render_today_expense_summary(today_summary: dict):
         <div class="metric-card" style="border-top: 3px solid #059669;">
             <div class="metric-label">🚆 เดินทาง BTS/MRT วันนี้</div>
             <div class="metric-value">฿{transit:,.2f}</div>
-            <div class="metric-sub neutral">โควต้าเดินทางประจำสัปดาห์: ฿700.00</div>
+            <div class="metric-sub neutral">โควต้าเดินทางประจำสัปดาห์: ฿1,000.00</div>
         </div>
         """, unsafe_allow_html=True)
 

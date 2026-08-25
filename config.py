@@ -23,12 +23,16 @@ ACCOUNTS = {
     "SCB": {
         "id": "SCB",
         "name": "SCB (Daily Spending Wallet)",
-        "role": "Receives weekly allowance (3,150 THB/wk = 2,450 Food + 700 Transit)",
-        "type": "Operational",
-        "icon": "💜",
+        "type": "Savings",
+        "icon": "🟣",
         "logo": "scb.jpg",
-        "color": "#6D28D9", # Purple
-        "default_initial": 3150.0
+        "color": "#7C3AED",
+        "role": "Receives weekly allowance (3,450 THB/wk = 2,450 Food + 1,000 Transit)",
+        "is_buffer_account": False,
+        "is_investment_account": False,
+        "is_salary_account": False,
+        "is_daily_wallet": True,
+        "default_initial": 3450.0
     },
     "KBANK": {
         "id": "KBANK",
@@ -64,11 +68,11 @@ BUDGET_RULES = {
         "Utilities & Phone & Internet": {"amount": 3311.0, "from_account": "Thai Credit", "category": "Utilities_Phone", "type": "Expense", "note": "ค่าน้ำ/ไฟ/เน็ตบ้าน/โทรศัพท์ (Held in Thai Credit)"}
     },
     "Daily Living (SCB Weekly Disbursed)": {
-        "Weekly Allowance Total": 3150.0,
-        "Daily Food Baseline": 350.0,  # THB/day (~10,500/month)
-        "Transit Baseline": 700.0,     # THB/week (~2,800/month) -> Transferred to KBANK on card swipe
-        "Special Meals Max Count": 2,  # up to 2 times/month
-        "Special Meal Quota": 600.0    # 600 THB each (Total 1,200 THB)
+        "Weekly Allowance Total": 3450.0,
+        "Daily Food Baseline": 350.0,   # THB/day (~10,500/month)
+        "Transit Baseline": 1000.0,     # THB/week (~4,000/month) -> Transferred to KBANK on card swipe
+        "Special Meals Max Count": 2,   # up to 2 times/month
+        "Special Meal Quota": 600.0     # 600 THB each (Total 1,200 THB)
     }
 }
 

@@ -69,8 +69,8 @@ class TestDoubleEntryLedger:
         engine.macro_salary_income(amount=43000.0)
         engine.macro_weekly_allowance()
         summary = engine.get_accounts_summary()
-        assert summary["thai_credit_balance"] == 53000.0 - 3150.0
-        assert summary["scb_balance"] == 2000.0 + 3150.0
+        assert summary["thai_credit_balance"] == 53000.0 - 3450.0
+        assert summary["scb_balance"] == 2000.0 + 3450.0
 
     def test_expense_debits_source_account(self, engine):
         engine.backend.add_transaction(
@@ -88,8 +88,8 @@ class TestDoubleEntryLedger:
     def test_transit_swipe_moves_scb_to_kbank(self, engine):
         engine.macro_transit_swipe()
         summary = engine.get_accounts_summary()
-        assert summary["scb_balance"] == 2000.0 - 700.0
-        assert summary["kbank_balance"] == 1500.0 + 700.0
+        assert summary["scb_balance"] == 2000.0 - 1000.0
+        assert summary["kbank_balance"] == 1500.0 + 1000.0
 
     def test_insurance_sinking_moves_thai_credit_to_bay(self, engine):
         engine.macro_insurance_sinking()

@@ -225,7 +225,7 @@ class TransactionEngine:
 
     def macro_weekly_allowance(self, target_date: date | None = None) -> dict:
         """
-        Disburses weekly allowance: Thai Credit -> SCB (3,150 THB: 2,450 Food + 700 Transit).
+        Disburses weekly allowance: Thai Credit -> SCB (3,450 THB: 2,450 Food + 1,000 Transit).
         """
         d = target_date or date.today()
         return self.backend.add_transaction(
@@ -234,13 +234,13 @@ class TransactionEngine:
             from_account="Thai Credit",
             to_account="SCB",
             category="Other",
-            amount=3150.0,
-            note="⚡ จัดสรรงบสัปดาห์ (Weekly Allowance): อาหาร 2,450 + เดินทาง 700 THB"
+            amount=3450.0,
+            note="⚡ จัดสรรงบสัปดาห์ (Weekly Allowance): อาหาร 2,450 + เดินทาง 1,000 THB"
         )
 
-    def macro_transit_swipe(self, target_date: date | None = None, amount: float = 700.0) -> dict:
+    def macro_transit_swipe(self, target_date: date | None = None, amount: float = 1000.0) -> dict:
         """
-        Credit card swipe for transit: SCB -> KBANK (700 THB) to maintain zero CC debt.
+        Credit card swipe for transit: SCB -> KBANK (1,000 THB) to maintain zero CC debt.
         """
         d = target_date or date.today()
         return self.backend.add_transaction(
