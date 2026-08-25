@@ -122,7 +122,8 @@ class TransactionEngine:
             "insurance_status": insurance_status,
             "total_income": total_income,
             "total_expense": total_expense,
-            "cycle_transactions_count": len(cycle_df)
+            "cycle_transactions_count": len(cycle_df),
+            "cycle_df": cycle_df
         }
 
     def get_account_statement(self, account_name: str) -> pd.DataFrame:

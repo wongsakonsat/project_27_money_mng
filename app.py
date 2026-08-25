@@ -279,7 +279,34 @@ with tab_dash:
         st.plotly_chart(donut_chart, use_container_width=True)
 
     # Envelope & Budget Execution Section
+    if "selected_envelope" not in st.session_state:
+        st.session_state["selected_envelope"] = None
+
+    cycle_df = cycle_analytics.get("cycle_df", pd.DataFrame())
+
+    def get_envelope_txs(key):
+        if cycle_df.empty:
+            return pd.DataFrame()
+        if key == "Mom":
+            return cycle_df[(cycle_df["Category"] == "Mom")]
+        elif key == "DCA":
+            return cycle_df[(cycle_df["Category"] == "DCA")]
+        elif key == "Insurance":
+            return cycle_df[(cycle_df["Category"] == "Insurance_Fund") | ((cycle_df["Type"] == "Internal_Transfer") & (cycle_df["To_Account"] == "BAY"))]
+        elif key == "Rent":
+            return cycle_df[(cycle_df["Category"] == "Rent")]
+        elif key == "Utilities_Phone":
+            return cycle_df[(cycle_df["Category"] == "Utilities_Phone")]
+        return pd.DataFrame()
+
+    mom_txs = get_envelope_txs("Mom")
+    dca_txs = get_envelope_txs("DCA")
+    ins_txs = get_envelope_txs("Insurance")
+    rent_txs = get_envelope_txs("Rent")
+    util_txs = get_envelope_txs("Utilities_Phone")
+
     st.markdown("#### 🎯 ติดตามภาระผูกพันประจำงวด (Fixed Commitments & Envelopes)")
+    st.caption("💡 คลิกที่ปุ่ม **'🔍 ดู Txn'** ใต้การ์ดแต่ละใบเพื่อดูรายการธุรกรรมที่บันทึกตัดจ่ายจริงในงวดนี้")
     
     col_env1, col_env2, col_env3, col_env4, col_env5 = st.columns(5)
     
@@ -288,65 +315,142 @@ with tab_dash:
     with col_env1:
         status_badge = "✅ จ่ายแล้ว" if mom_stat["done"] else "⏳ รอจ่าย (23rd)"
         badge_cls = "badge-emerald" if mom_stat["done"] else "badge-amber"
+        border_style = "border: 2px solid #2563EB; box-shadow: 0 4px 12px rgba(37,99,235,0.15);" if st.session_state["selected_envelope"] == "Mom" else ""
         st.markdown(f"""
-        <div class="metric-card">
+        <div class="metric-card" style="{border_style}">
             <div class="metric-label">❤️ ให้คุณแม่ (Mom)</div>
             <div style="font-size: 18px; font-weight: 700;">฿{mom_stat['spent']:,.0f} / 5,000</div>
             <div style="margin-top: 8px;"><span class="badge-pill {badge_cls}">{status_badge}</span></div>
         </div>
         """, unsafe_allow_html=True)
+        btn_txt = f"🔍 ดู Txn ({len(mom_txs)})" if not mom_txs.empty else "🔍 ดู Txn (0)"
+        if st.button(btn_txt, key="btn_toggle_mom", use_container_width=True):
+            st.session_state["selected_envelope"] = None if st.session_state["selected_envelope"] == "Mom" else "Mom"
+            st.rerun()
 
     # 2. DCA Investment
     dca_stat = cycle_analytics["fixed_status"]["DCA"]
     with col_env2:
         status_badge = "✅ ลงทุนแล้ว" if dca_stat["done"] else "⏳ รอตัด DCA"
         badge_cls = "badge-emerald" if dca_stat["done"] else "badge-amber"
+        border_style = "border: 2px solid #2563EB; box-shadow: 0 4px 12px rgba(37,99,235,0.15);" if st.session_state["selected_envelope"] == "DCA" else ""
         st.markdown(f"""
-        <div class="metric-card">
+        <div class="metric-card" style="{border_style}">
             <div class="metric-label">📈 DCA ลงทุน</div>
             <div style="font-size: 18px; font-weight: 700;">฿{dca_stat['spent']:,.0f} / 4,800</div>
             <div style="margin-top: 8px;"><span class="badge-pill {badge_cls}">{status_badge}</span></div>
         </div>
         """, unsafe_allow_html=True)
+        btn_txt = f"🔍 ดู Txn ({len(dca_txs)})" if not dca_txs.empty else "🔍 ดู Txn (0)"
+        if st.button(btn_txt, key="btn_toggle_dca", use_container_width=True):
+            st.session_state["selected_envelope"] = None if st.session_state["selected_envelope"] == "DCA" else "DCA"
+            st.rerun()
 
     # 3. Insurance Fund Transfer
     ins_stat = cycle_analytics["insurance_status"]
     with col_env3:
         status_badge = "✅ โอนเข้า BAY แล้ว" if ins_stat["done"] else "⏳ รอโอน (23rd)"
         badge_cls = "badge-emerald" if ins_stat["done"] else "badge-amber"
+        border_style = "border: 2px solid #2563EB; box-shadow: 0 4px 12px rgba(37,99,235,0.15);" if st.session_state["selected_envelope"] == "Insurance" else ""
         st.markdown(f"""
-        <div class="metric-card">
+        <div class="metric-card" style="{border_style}">
             <div class="metric-label">🛡️ สำรองประกัน (BAY)</div>
             <div style="font-size: 18px; font-weight: 700;">฿{ins_stat['funded']:,.0f} / 3,500</div>
             <div style="margin-top: 8px;"><span class="badge-pill {badge_cls}">{status_badge}</span></div>
         </div>
         """, unsafe_allow_html=True)
+        btn_txt = f"🔍 ดู Txn ({len(ins_txs)})" if not ins_txs.empty else "🔍 ดู Txn (0)"
+        if st.button(btn_txt, key="btn_toggle_ins", use_container_width=True):
+            st.session_state["selected_envelope"] = None if st.session_state["selected_envelope"] == "Insurance" else "Insurance"
+            st.rerun()
 
     # 4. Rent
     rent_stat = cycle_analytics["fixed_status"]["Rent"]
     with col_env4:
         status_badge = "✅ จ่ายแล้ว" if rent_stat["done"] else "⏳ รอสิ้นเดือน"
         badge_cls = "badge-emerald" if rent_stat["done"] else "badge-amber"
+        border_style = "border: 2px solid #2563EB; box-shadow: 0 4px 12px rgba(37,99,235,0.15);" if st.session_state["selected_envelope"] == "Rent" else ""
         st.markdown(f"""
-        <div class="metric-card">
+        <div class="metric-card" style="{border_style}">
             <div class="metric-label">🏠 ค่าเช่าห้อง (Rent)</div>
             <div style="font-size: 18px; font-weight: 700;">฿{rent_stat['spent']:,.0f} / 6,000</div>
             <div style="margin-top: 8px;"><span class="badge-pill {badge_cls}">{status_badge}</span></div>
         </div>
         """, unsafe_allow_html=True)
+        btn_txt = f"🔍 ดู Txn ({len(rent_txs)})" if not rent_txs.empty else "🔍 ดู Txn (0)"
+        if st.button(btn_txt, key="btn_toggle_rent", use_container_width=True):
+            st.session_state["selected_envelope"] = None if st.session_state["selected_envelope"] == "Rent" else "Rent"
+            st.rerun()
 
     # 5. Utilities & Phone
     util_stat = cycle_analytics["fixed_status"]["Utilities_Phone"]
     with col_env5:
         status_badge = "✅ จ่ายครบแล้ว" if util_stat["done"] else f"⏳ จ่ายแล้ว ฿{util_stat['spent']:,.0f}"
         badge_cls = "badge-emerald" if util_stat["done"] else "badge-amber"
+        border_style = "border: 2px solid #2563EB; box-shadow: 0 4px 12px rgba(37,99,235,0.15);" if st.session_state["selected_envelope"] == "Utilities_Phone" else ""
         st.markdown(f"""
-        <div class="metric-card">
+        <div class="metric-card" style="{border_style}">
             <div class="metric-label">⚡ ค่าน้ำ/ไฟ/เน็ต/โทรศัพท์</div>
             <div style="font-size: 18px; font-weight: 700;">฿{util_stat['spent']:,.0f} / {util_stat['budget']:,.0f}</div>
             <div style="margin-top: 8px;"><span class="badge-pill {badge_cls}">{status_badge}</span></div>
         </div>
         """, unsafe_allow_html=True)
+        btn_txt = f"🔍 ดู Txn ({len(util_txs)})" if not util_txs.empty else "🔍 ดู Txn (0)"
+        if st.button(btn_txt, key="btn_toggle_util", use_container_width=True):
+            st.session_state["selected_envelope"] = None if st.session_state["selected_envelope"] == "Utilities_Phone" else "Utilities_Phone"
+            st.rerun()
+
+    # Toggleable Envelope Details View Panel
+    sel_env = st.session_state.get("selected_envelope")
+    if sel_env:
+        env_meta_map = {
+            "Mom": {"name": "❤️ ให้คุณแม่ (Mom Support)", "budget": 5000.0, "spent": mom_stat["spent"], "txs": mom_txs},
+            "DCA": {"name": "📈 DCA ลงทุนรายเดือน", "budget": 4800.0, "spent": dca_stat["spent"], "txs": dca_txs},
+            "Insurance": {"name": "🛡️ สำรองกองทุนประกัน (BAY Insurance Fund)", "budget": 3500.0, "spent": ins_stat["funded"], "txs": ins_txs},
+            "Rent": {"name": "🏠 ค่าเช่าห้องพัก (Rent Provision)", "budget": 6000.0, "spent": rent_stat["spent"], "txs": rent_txs},
+            "Utilities_Phone": {"name": "⚡ ค่าน้ำ / ค่าไฟ / เน็ตบ้าน / โทรศัพท์ (Utilities & Net)", "budget": util_stat["budget"], "spent": util_stat["spent"], "txs": util_txs}
+        }
+        
+        current_env = env_meta_map.get(sel_env)
+        if current_env:
+            tx_detail_df = current_env["txs"]
+            
+            st.markdown(f"""
+            <div style="background: #F8FAFC; border: 1.5px solid #93C5FD; border-radius: 12px; padding: 14px 18px; margin-top: 14px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 15px; font-weight: 700; color: #1E3A8A;">🔍 รายการธุรกรรม: {current_env['name']}</div>
+                        <div style="font-size: 12.5px; color: #64748B; margin-top: 2px;">
+                            ยอดตัดจ่ายจริงในงวดนี้: <b style="color: #2563EB;">฿{current_env['spent']:,.2f}</b> / งบเป้าหมาย ฿{current_env['budget']:,.2f}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if not tx_detail_df.empty:
+                show_df = tx_detail_df[["Date", "Type", "From_Account", "To_Account", "Amount", "Note", "Transaction_ID"]].copy()
+                show_df["Account_Flow"] = [
+                    f"{r['From_Account'] or 'Cash'} ➡️ {r['To_Account'] or 'External'}" if r['Type'] == 'Internal_Transfer'
+                    else f"{r['From_Account'] or 'Cash'} (ตัดจ่ายตรง)"
+                    for _, r in show_df.iterrows()
+                ]
+                
+                st.dataframe(
+                    show_df[["Date", "Account_Flow", "Note", "Amount", "Transaction_ID"]].style.format({
+                        "Amount": lambda x: f"฿{x:,.2f}"
+                    }),
+                    use_container_width=True,
+                    height=min(200, 45 + len(show_df) * 38)
+                )
+            else:
+                st.info(f"⏳ ยังไม่มีรายการธุรกรรมที่บันทึกตัดจ่ายสำหรับ '{current_env['name']}' ในงวดปัจจุบัน")
+            
+            col_close1, col_close2 = st.columns([1, 4])
+            with col_close1:
+                if st.button("❌ ปิดรายละเอียด", key="btn_close_env_detail", use_container_width=True):
+                    st.session_state["selected_envelope"] = None
+                    st.rerun()
 
 # =============================================================
 # TAB 2: CREDIT CARDS & BILLS (บริหารบิลบัตรเครดิต & ยอดรอจ่าย)
