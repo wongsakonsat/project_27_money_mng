@@ -35,9 +35,9 @@ class FinanceBackend:
         if skip_remote_connect:
             return
 
-        # Check webhook or service account
-        if self.webhook_url:
-            self.test_webhook_connection(self.webhook_url)
+        # Check webhook or service account (Non-blocking: don't block page render with synchronous HTTP)
+        if self.webhook_url and self.webhook_url.startswith("https://"):
+            self.is_connected_to_sheets = True
         elif os.path.exists(CREDENTIALS_FILE):
             self.connect_google_sheets()
 
@@ -56,7 +56,7 @@ class FinanceBackend:
             self.connection_error = "URL ต้องขึ้นต้นด้วย https://script.google.com/..."
             return False
         try:
-            resp = requests.get(url, timeout=10, allow_redirects=True)
+            resp = requests.get(url, timeout=4, allow_redirects=True)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == "success":
