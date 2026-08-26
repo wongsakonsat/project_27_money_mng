@@ -284,12 +284,12 @@ with tab_dash:
     with col_chart1:
         if "Food Pacing" in track_view:
             food_chart = ui_components.plot_daily_food_burn_chart(cycle_info, cycle_analytics["food_metrics"], transactions)
-            st.plotly_chart(food_chart, use_container_width=True)
+            st.plotly_chart(food_chart, use_container_width=True, config={"displayModeBar": False})
         else:
             monthly_tracker_res = ui_components.plot_monthly_expense_surplus_tracker(
                 cycle_info, cycle_plan, transactions, cycle_analytics
             )
-            st.plotly_chart(monthly_tracker_res["fig"], use_container_width=True)
+            st.plotly_chart(monthly_tracker_res["fig"], use_container_width=True, config={"displayModeBar": False})
             
             # Mini KPI indicators for Monthly Plan
             p_inc = monthly_tracker_res["planned_income"]
@@ -348,7 +348,7 @@ with tab_dash:
 
     with col_chart2:
         donut_chart = ui_components.plot_category_spend_donut(cycle_analytics["category_spend"])
-        st.plotly_chart(donut_chart, use_container_width=True)
+        st.plotly_chart(donut_chart, use_container_width=True, config={"displayModeBar": False})
 
     # Envelope & Budget Execution Section
     if "selected_envelope" not in st.session_state:
@@ -814,7 +814,7 @@ with tab_ledgers:
             yaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0", title="ยอดคงเหลือ (THB)"),
             height=280
         )
-        st.plotly_chart(fig_bal, use_container_width=True)
+        st.plotly_chart(fig_bal, use_container_width=True, config={"displayModeBar": False})
 
         # Statement Table
         st.markdown("##### 📜 รายการเดินบัญชี (Statement Records)")

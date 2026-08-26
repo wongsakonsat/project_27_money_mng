@@ -439,8 +439,9 @@ def plot_daily_food_burn_chart(cycle_info: dict, food_metrics: dict, transaction
         x=[d.strftime("%d %b") for d in dates],
         y=ideal_cumulative,
         mode="lines",
-        name="งบตามแผน (฿350/day)",
-        line=dict(color="#94A3B8", width=1.5, dash="dash")
+        name="งบตามแผน (฿350/วัน)",
+        line=dict(color="#94A3B8", width=2, dash="dash"),
+        hovertemplate="งบตามแผน: ฿%{y:,.2f}<extra></extra>"
     ))
     
     # Actual spend line
@@ -448,21 +449,51 @@ def plot_daily_food_burn_chart(cycle_info: dict, food_metrics: dict, transaction
         x=[d.strftime("%d %b") for d in dates],
         y=actual_cumulative,
         mode="lines+markers",
-        name="จ่ายจริงสะสม (Actual Food)",
-        line=dict(color="#DC2626" if food_metrics["pace_diff"] > 350 else "#059669", width=2.5),
-        marker=dict(size=5)
+        name="จ่ายจริงสะสม (Food)",
+        line=dict(color="#DC2626" if food_metrics.get("pace_diff", 0) > 350 else "#059669", width=2.8),
+        marker=dict(size=6, symbol="circle"),
+        hovertemplate="จ่ายจริงสะสม: ฿%{y:,.2f}<extra></extra>"
     ))
     
     fig.update_layout(
-        title="📈 การใช้จ่ายงบอาหารเทียบกับแผน (Food Burn Rate Pacing)",
+        title=dict(
+            text="📈 การใช้จ่ายงบอาหารเทียบกับแผน (Food Burn Rate Pacing)",
+            font=dict(color="#0F172A", size=13.5, family="Prompt, Inter", weight="bold"),
+            x=0, y=0.98
+        ),
         paper_bgcolor="#FFFFFF",
         plot_bgcolor="#FFFFFF",
         font=dict(color="#334155", family="Prompt, Inter", size=12),
-        margin=dict(l=20, r=20, t=50, b=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0"),
-        yaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0", title="บาท (THB)"),
-        height=320
+        margin=dict(l=35, r=20, t=65, b=35),
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="#FFFFFF",
+            font_size=12,
+            font_family="Prompt, Inter",
+            bordercolor="#CBD5E1"
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(size=11, color="#475569")
+        ),
+        xaxis=dict(
+            gridcolor="#F8FAFC",
+            linecolor="#E2E8F0",
+            nticks=8,
+            tickangle=0,
+            tickfont=dict(size=11, color="#64748B")
+        ),
+        yaxis=dict(
+            gridcolor="#F1F5F9",
+            linecolor="#E2E8F0",
+            title=dict(text="บาท (THB)", font=dict(size=11, color="#64748B")),
+            tickfont=dict(size=11, color="#64748B")
+        ),
+        height=350
     )
     return fig
 
@@ -585,7 +616,8 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
         y=planned_cumulative,
         mode="lines",
         name=f"เพดานงบตามแผน (เป้าเหลือ ฿{target_surplus:,.0f})",
-        line=dict(color="#64748B", width=1.8, dash="dash")
+        line=dict(color="#64748B", width=2, dash="dash"),
+        hovertemplate="เพดานงบตามแผน: ฿%{y:,.2f}<extra></extra>"
     ))
     
     # Actual Total Outflow
@@ -595,22 +627,52 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
         y=actual_cumulative,
         mode="lines+markers",
         name="จ่ายสะสมจริง (Actual Outflow)",
-        line=dict(color=line_color, width=2.5),
+        line=dict(color=line_color, width=2.8),
         marker=dict(size=6, color=line_color),
         fill="tozeroy",
-        fillcolor="rgba(37, 99, 235, 0.04)"
+        fillcolor="rgba(37, 99, 235, 0.05)",
+        hovertemplate="จ่ายสะสมจริง: ฿%{y:,.2f}<extra></extra>"
     ))
     
     fig.update_layout(
-        title="📊 แทรคภาพรวมค่าใช้จ่าย & การคุมเป้าหมายเงินเหลือประจำงวด",
+        title=dict(
+            text="📊 แทรคภาพรวมค่าใช้จ่าย & การคุมเป้าหมายเงินเหลือประจำงวด",
+            font=dict(color="#0F172A", size=13.5, family="Prompt, Inter", weight="bold"),
+            x=0, y=0.98
+        ),
         paper_bgcolor="#FFFFFF",
         plot_bgcolor="#FFFFFF",
         font=dict(color="#334155", family="Prompt, Inter", size=12),
-        margin=dict(l=20, r=20, t=50, b=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0"),
-        yaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0", title="ยอดใช้จ่ายสะสม (THB)"),
-        height=320
+        margin=dict(l=35, r=20, t=65, b=35),
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="#FFFFFF",
+            font_size=12,
+            font_family="Prompt, Inter",
+            bordercolor="#CBD5E1"
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(size=11, color="#475569")
+        ),
+        xaxis=dict(
+            gridcolor="#F8FAFC",
+            linecolor="#E2E8F0",
+            nticks=8,
+            tickangle=0,
+            tickfont=dict(size=11, color="#64748B")
+        ),
+        yaxis=dict(
+            gridcolor="#F1F5F9",
+            linecolor="#E2E8F0",
+            title=dict(text="ยอดใช้จ่ายสะสม (THB)", font=dict(size=11, color="#64748B")),
+            tickfont=dict(size=11, color="#64748B")
+        ),
+        height=350
     )
     
     return {
