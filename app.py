@@ -508,12 +508,25 @@ with tab_dash:
                     for _, r in show_df.iterrows()
                 ]
                 
+                renamed_show_df = show_df[["Date", "Account_Flow", "Note", "Amount", "Transaction_ID"]].rename(columns={
+                    "Date": "📅 วันที่",
+                    "Account_Flow": "🔄 เส้นทางบัญชี",
+                    "Note": "📝 บันทึก",
+                    "Amount": "💰 ยอดเงิน",
+                    "Transaction_ID": "🔑 Tx ID"
+                })
                 st.dataframe(
-                    show_df[["Date", "Account_Flow", "Note", "Amount", "Transaction_ID"]].style.format({
-                        "Amount": lambda x: f"฿{x:,.2f}"
-                    }),
+                    renamed_show_df,
+                    column_config={
+                        "📅 วันที่": st.column_config.TextColumn(width="small"),
+                        "🔄 เส้นทางบัญชี": st.column_config.TextColumn(width="medium"),
+                        "📝 บันทึก": st.column_config.TextColumn(width="large"),
+                        "💰 ยอดเงิน": st.column_config.NumberColumn(format="฿%.2f", width="medium"),
+                        "🔑 Tx ID": st.column_config.TextColumn(width="small")
+                    },
+                    hide_index=True,
                     use_container_width=True,
-                    height=min(200, 45 + len(show_df) * 38)
+                    height=min(250, 60 + len(show_df) * 40)
                 )
             else:
                 st.info(f"⏳ ยังไม่มีรายการธุรกรรมที่บันทึกตัดจ่ายสำหรับ '{current_env['name']}' ในงวดปัจจุบัน")
@@ -728,9 +741,19 @@ with tab_pending_cc:
         if cleared_items:
             with st.expander(f"📜 ประวัติรายการที่โอนเคลียร์เข้า KBANK แล้ว ({len(cleared_items)} รายการ)"):
                 cleared_df = pd.DataFrame(cleared_items)[["Date", "Item_Name", "Category", "Amount", "Cleared_From_Account", "Cleared_At", "Note"]]
-                cleared_df.columns = ["วันที่รูด", "รายการ", "หมวดหมู่", "ยอดเงิน (฿)", "บัญชีที่โอนเคลียร์", "เวลาที่เคลียร์", "หมายเหตุ"]
+                cleared_df.columns = ["📅 วันที่รูด", "🛍️ รายการ", "📂 หมวดหมู่", "💰 ยอดเงิน", "🏦 บัญชีที่โอนเคลียร์", "⏰ เวลาที่เคลียร์", "📝 หมายเหตุ"]
                 st.dataframe(
-                    cleared_df.style.format({"ยอดเงิน (฿)": "฿{:,.2f}"}),
+                    cleared_df,
+                    column_config={
+                        "📅 วันที่รูด": st.column_config.TextColumn(width="small"),
+                        "🛍️ รายการ": st.column_config.TextColumn(width="medium"),
+                        "📂 หมวดหมู่": st.column_config.TextColumn(width="small"),
+                        "💰 ยอดเงิน": st.column_config.NumberColumn(format="฿%.2f", width="medium"),
+                        "🏦 บัญชีที่โอนเคลียร์": st.column_config.TextColumn(width="small"),
+                        "⏰ เวลาที่เคลียร์": st.column_config.TextColumn(width="medium"),
+                        "📝 หมายเหตุ": st.column_config.TextColumn(width="large")
+                    },
+                    hide_index=True,
                     use_container_width=True
                 )
 
@@ -820,15 +843,25 @@ with tab_ledgers:
         st.markdown("##### 📜 รายการเดินบัญชี (Statement Records)")
         
         display_df = statement_df[["Date", "Type", "Description", "Inflow", "Outflow", "Balance", "Note", "Transaction_ID"]].copy()
+        display_df["Inflow"] = display_df["Inflow"].apply(lambda x: float(x) if float(x) > 0 else None)
+        display_df["Outflow"] = display_df["Outflow"].apply(lambda x: float(x) if float(x) > 0 else None)
+        display_df.columns = ["วันที่", "ประเภท", "รายการ / หมวดหมู่", "เงินเข้า (+)", "เงินออก (-)", "ยอดคงเหลือ", "บันทึกช่วยจำ", "Tx ID"]
         
         st.dataframe(
-            display_df.style.format({
-                "Inflow": lambda x: f"+฿{x:,.2f}" if x > 0 else "-",
-                "Outflow": lambda x: f"-฿{x:,.2f}" if x > 0 else "-",
-                "Balance": lambda x: f"฿{x:,.2f}"
-            }),
+            display_df,
+            column_config={
+                "วันที่": st.column_config.TextColumn("📅 วันที่", width="small"),
+                "ประเภท": st.column_config.TextColumn("🏷️ ประเภท", width="small"),
+                "รายการ / หมวดหมู่": st.column_config.TextColumn("📂 รายการ / หมวดหมู่", width="medium"),
+                "เงินเข้า (+)": st.column_config.NumberColumn("📥 เงินเข้า (+)", format="฿%.2f", width="medium"),
+                "เงินออก (-)": st.column_config.NumberColumn("📤 เงินออก (-)", format="฿%.2f", width="medium"),
+                "ยอดคงเหลือ": st.column_config.NumberColumn("💰 ยอดคงเหลือ", format="฿%.2f", width="medium"),
+                "บันทึกช่วยจำ": st.column_config.TextColumn("📝 บันทึกช่วยจำ", width="large"),
+                "Tx ID": st.column_config.TextColumn("🔑 Tx ID", width="small")
+            },
+            hide_index=True,
             use_container_width=True,
-            height=350
+            height=450
         )
         
         # Delete Transaction Option
