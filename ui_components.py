@@ -413,13 +413,22 @@ def plot_daily_food_burn_chart(cycle_info: dict, food_metrics: dict, transaction
     df = pd.DataFrame(transactions)
     actual_spent_by_date = {d: 0.0 for d in dates}
     if not df.empty and "Category" in df.columns:
-        food_tx = df[(df["Type"] == "Expense") & (df["Category"] == "Food_Daily")].copy()
-        if not food_tx.empty:
-            food_tx["Date_Obj"] = pd.to_datetime(food_tx["Date"]).dt.date
-            grouped = food_tx.groupby("Date_Obj")["Amount"].sum().to_dict()
-            for d, amt in grouped.items():
-                if d in actual_spent_by_date:
-                    actual_spent_by_date[d] = amt
+        for _, r in df.iterrows():
+            try:
+                d_raw = r.get("Date")
+                d_obj = datetime.strptime(str(d_raw)[:10], "%Y-%m-%d").date() if isinstance(d_raw, str) else (d_raw if isinstance(d_raw, date) else d_raw.date())
+                if d_obj in actual_spent_by_date:
+                    tx_type = r.get("Type")
+                    cat = r.get("Category")
+                    amt = float(r.get("Amount", 0.0))
+                    if tx_type == "Expense" and cat == "Food_Daily":
+                        actual_spent_by_date[d_obj] += amt
+                    elif tx_type == "Internal_Transfer" and r.get("To_Account") == "KBANK" and cat == "Food_Daily":
+                        actual_spent_by_date[d_obj] += amt
+                    elif tx_type == "Income" and cat == "Friend_Repay":
+                        actual_spent_by_date[d_obj] = max(0.0, actual_spent_by_date[d_obj] - amt)
+            except:
+                pass
     
     actual_cumulative = []
     running = 0.0
@@ -565,8 +574,11 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
                         
                         if tx_type == "Expense":
                             actual_spent_by_date[d_obj] += amt
-                        elif tx_type == "Internal_Transfer" and r.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
-                            actual_spent_by_date[d_obj] += amt
+                        elif tx_type == "Internal_Transfer":
+                            if r.get("To_Account") == "KBANK" and cat in ["Food_Daily", "Special_Meal", "Transit", "Wishlist_Hobby", "Mom", "Utilities_Phone", "Other"]:
+                                actual_spent_by_date[d_obj] += amt
+                            elif r.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
+                                actual_spent_by_date[d_obj] += amt
                 except:
                     pass
                     

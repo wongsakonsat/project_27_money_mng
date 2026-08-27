@@ -72,7 +72,7 @@ class TransactionEngine:
 
         cycle_df = df[df["Cycle"] == target_cycle_id] if not df.empty and "Cycle" in df.columns else pd.DataFrame()
 
-        # Category spending aggregation (Includes Expenses + Transfers allocated from Thai Credit for commitments)
+        # Category spending aggregation (Includes Direct Expenses + CC Backing Transfers to KBANK + Envelopes from Thai Credit)
         cat_spend = {cat: 0.0 for cat in config.CATEGORY_NAMES}
         if not cycle_df.empty:
             for _, row in cycle_df.iterrows():
@@ -81,9 +81,18 @@ class TransactionEngine:
                 amt = float(row.get("Amount", 0.0))
                 if tx_type == "Expense":
                     cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
-                elif tx_type == "Internal_Transfer" and row.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
-                    cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
+                elif tx_type == "Internal_Transfer":
+                    # 1. Backing CC swipes transferred into KBANK (e.g. Ice cream, Grab, YSL perfume)
+                    if row.get("To_Account") == "KBANK" and cat in ["Food_Daily", "Special_Meal", "Transit", "Wishlist_Hobby", "Mom", "Utilities_Phone", "Other"]:
+                        cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
+                    # 2. Commitments allocated from Thai Credit
+                    elif row.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
+                        cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
 
+        # Deduct Friend Repayments so Food_Daily only reflects Net Personal food spending
+        friend_repay = float(cycle_df[(cycle_df["Type"] == "Income") & (cycle_df["Category"] == "Friend_Repay")]["Amount"].sum()) if not cycle_df.empty else 0.0
+        cat_spend["Food_Daily"] = max(0.0, cat_spend.get("Food_Daily", 0.0) - friend_repay)
+        
         # Daily Food Metrics
         food_spent = cat_spend.get("Food_Daily", 0.0)
         food_metrics = calculate_food_burn_metrics(food_spent, current_cycle)
