@@ -72,7 +72,7 @@ class FinanceBackend:
             return False
 
     def sync_pull_from_webhook(self) -> bool:
-        """Pulls latest records from Google Sheets via Webhook and updates SQLite DB."""
+        """Pulls latest records from Google Sheets via Webhook and merges them into SQLite DB."""
         if not self.webhook_url:
             return False
         try:
@@ -80,7 +80,7 @@ class FinanceBackend:
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == "success":
-                    # Update Accounts
+                    # 1. Update Accounts Initial Balances
                     g_accounts = data.get("accounts", [])
                     if g_accounts:
                         inits = {}
@@ -94,11 +94,48 @@ class FinanceBackend:
                         if inits:
                             self.db.update_initial_balances(inits)
 
-                    # Update Wishlist
+                    # 2. Update Wishlist
                     g_wishlist = data.get("wishlist", [])
                     if g_wishlist:
                         self.db.save_wishlist(g_wishlist)
 
+                    # 3. Merge Live Transactions from Webhook into Local SQLite
+                    sheet_txs = data.get("transactions", [])
+                    if sheet_txs:
+                        local_txs = self.db.get_transactions()
+                        local_tx_ids = {t["Transaction_ID"] for t in local_txs if t.get("Transaction_ID")}
+                        with self.db._get_connection() as conn:
+                            for t in sheet_txs:
+                                tid = t.get("Transaction_ID")
+                                if tid and tid not in local_tx_ids:
+                                    raw_date = str(t.get("Date", ""))[:10]
+                                    conn.execute("""
+                                        INSERT INTO transactions (transaction_id, date, cycle, type, from_account, to_account, category, amount, note, created_at)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    """, (
+                                        tid,
+                                        raw_date,
+                                        t.get("Cycle", "2026-08-23_2026-09-22"),
+                                        t.get("Type", "Expense"),
+                                        t.get("From_Account", ""),
+                                        t.get("To_Account", ""),
+                                        t.get("Category", "Other"),
+                                        float(t.get("Amount", 0.0)),
+                                        t.get("Note", ""),
+                                        str(t.get("Created_At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                                    ))
+                                    # Check if this transaction cleared a pending CC item
+                                    note = t.get("Note", "")
+                                    if "เคลียร์ค่าบัตรรอโอน" in note:
+                                        from_acc = t.get("From_Account", "")
+                                        conn.execute("""
+                                            UPDATE pending_cc
+                                            SET status = 'Cleared', cleared_from_account = ?
+                                            WHERE ? LIKE '%' || item_name || '%' AND status = 'Pending'
+                                        """, (from_acc, note))
+                            conn.commit()
+
+                    self.db.recalculate_all_balances()
                     return True
             return False
         except Exception as e:
@@ -121,6 +158,11 @@ class FinanceBackend:
         except Exception as e:
             print(f"Error pushing to webhook: {e}")
             return False
+
+    def sync_live(self) -> bool:
+        """Bi-directional sync: Pulls cloud updates first, then pushes complete state."""
+        self.sync_pull_from_webhook()
+        return self.sync_push_to_webhook()
 
     # ------------------ GSPREAD SERVICE ACCOUNT ------------------
 
