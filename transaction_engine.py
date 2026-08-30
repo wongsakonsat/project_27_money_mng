@@ -366,9 +366,16 @@ class TransactionEngine:
         all_tx = self.backend.get_transactions()
         today_tx = [t for t in all_tx if t["Date"] == d_str]
 
-        today_expenses = sum(t["Amount"] for t in today_tx if t["Type"] == "Expense")
-        today_food = sum(t["Amount"] for t in today_tx if t["Type"] == "Expense" and t["Category"] == "Food_Daily")
-        today_transit = sum(t["Amount"] for t in today_tx if t["Category"] == "Transit")
+        # 1. Today Net Personal Food:
+        gross_food = sum(t["Amount"] for t in today_tx if (t["Type"] == "Expense" and t["Category"] == "Food_Daily") or (t["Type"] == "Internal_Transfer" and t.get("To_Account") == "KBANK" and t["Category"] == "Food_Daily"))
+        food_repay = sum(t["Amount"] for t in today_tx if t["Type"] == "Income" and t["Category"] == "Friend_Repay")
+        today_food = max(0.0, gross_food - food_repay)
+
+        # 2. Today Transit:
+        today_transit = sum(t["Amount"] for t in today_tx if (t["Type"] == "Expense" and t["Category"] == "Transit") or (t["Type"] == "Internal_Transfer" and t.get("To_Account") == "KBANK" and t["Category"] == "Transit"))
+        
+        # 3. Today Expenses (Net personal outflows today):
+        today_expenses = today_food + sum(t["Amount"] for t in today_tx if t["Type"] == "Expense" and t["Category"] not in ["Food_Daily", "Friend_Repay"])
         
         food_baseline = 350.0
         food_remaining = food_baseline - today_food
