@@ -411,24 +411,28 @@ def plot_daily_food_burn_chart(cycle_info: dict, food_metrics: dict, transaction
     ideal_cumulative = [(i + 1) * base_daily for i in range(total_days)]
     
     df = pd.DataFrame(transactions)
-    actual_spent_by_date = {d: 0.0 for d in dates}
+    daily_gross = {d: 0.0 for d in dates}
+    daily_repay = {d: 0.0 for d in dates}
     if not df.empty and "Category" in df.columns:
         for _, r in df.iterrows():
             try:
                 d_raw = r.get("Date")
                 d_obj = datetime.strptime(str(d_raw)[:10], "%Y-%m-%d").date() if isinstance(d_raw, str) else (d_raw if isinstance(d_raw, date) else d_raw.date())
-                if d_obj in actual_spent_by_date:
+                if d_obj in daily_gross:
                     tx_type = r.get("Type")
                     cat = r.get("Category")
                     amt = float(r.get("Amount", 0.0))
+                    to_acc = r.get("To_Account")
                     if tx_type == "Expense" and cat == "Food_Daily":
-                        actual_spent_by_date[d_obj] += amt
-                    elif tx_type == "Internal_Transfer" and r.get("To_Account") == "KBANK" and cat == "Food_Daily":
-                        actual_spent_by_date[d_obj] += amt
+                        daily_gross[d_obj] += amt
+                    elif tx_type == "Internal_Transfer" and to_acc == "KBANK" and cat == "Food_Daily":
+                        daily_gross[d_obj] += amt
                     elif tx_type == "Income" and cat == "Friend_Repay":
-                        actual_spent_by_date[d_obj] = max(0.0, actual_spent_by_date[d_obj] - amt)
+                        daily_repay[d_obj] += amt
             except:
                 pass
+    
+    actual_spent_by_date = {d: max(0.0, daily_gross[d] - daily_repay[d]) for d in dates}
     
     actual_cumulative = []
     running = 0.0
@@ -553,34 +557,35 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
     dates = [start_d + timedelta(days=i) for i in range(num_days)]
     
     # Group actual expenses and commitments by date in this cycle
-    actual_spent_by_date = {d: 0.0 for d in dates}
+    daily_gross_all = {d: 0.0 for d in dates}
+    daily_repay_all = {d: 0.0 for d in dates}
     if transactions:
         tx_df = pd.DataFrame(transactions)
         if not tx_df.empty and "Category" in tx_df.columns:
             for _, r in tx_df.iterrows():
                 try:
                     d_raw = r.get("Date")
-                    if isinstance(d_raw, str):
-                        d_obj = datetime.strptime(str(d_raw)[:10], "%Y-%m-%d").date()
-                    elif isinstance(d_raw, (datetime, date)):
-                        d_obj = d_raw if isinstance(d_raw, date) else d_raw.date()
-                    else:
-                        continue
-                    
-                    if d_obj in actual_spent_by_date:
+                    d_obj = datetime.strptime(str(d_raw)[:10], "%Y-%m-%d").date() if isinstance(d_raw, str) else (d_raw if isinstance(d_raw, date) else d_raw.date())
+                    if d_obj in daily_gross_all:
                         tx_type = r.get("Type")
                         cat = r.get("Category")
                         amt = float(r.get("Amount", 0.0))
+                        to_acc = r.get("To_Account")
+                        from_acc = r.get("From_Account")
                         
                         if tx_type == "Expense":
-                            actual_spent_by_date[d_obj] += amt
+                            daily_gross_all[d_obj] += amt
                         elif tx_type == "Internal_Transfer":
-                            if r.get("To_Account") == "KBANK" and cat in ["Food_Daily", "Special_Meal", "Transit", "Wishlist_Hobby", "Mom", "Utilities_Phone", "Other"]:
-                                actual_spent_by_date[d_obj] += amt
-                            elif r.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
-                                actual_spent_by_date[d_obj] += amt
+                            if to_acc == "KBANK" and cat in ["Food_Daily", "Special_Meal", "Transit", "Wishlist_Hobby", "Mom", "Utilities_Phone", "Other"]:
+                                daily_gross_all[d_obj] += amt
+                            elif from_acc == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
+                                daily_gross_all[d_obj] += amt
+                        elif tx_type == "Income" and cat == "Friend_Repay":
+                            daily_repay_all[d_obj] += amt
                 except:
                     pass
+                    
+    actual_spent_by_date = {d: max(0.0, daily_gross_all[d] - daily_repay_all[d]) for d in dates}
                     
     # Build planned curve (linear pacing) vs actual cumulative
     planned_cumulative = []
