@@ -285,6 +285,7 @@ with tab_dash:
         if "Food Pacing" in track_view:
             food_chart = ui_components.plot_daily_food_burn_chart(cycle_info, cycle_analytics["food_metrics"], transactions)
             st.plotly_chart(food_chart, use_container_width=True, config={"displayModeBar": False})
+            ui_components.render_daily_food_pacing_table(cycle_info, transactions)
         else:
             monthly_tracker_res = ui_components.plot_monthly_expense_surplus_tracker(
                 cycle_info, cycle_plan, transactions, cycle_analytics

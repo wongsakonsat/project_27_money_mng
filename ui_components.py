@@ -428,7 +428,9 @@ def plot_daily_food_burn_chart(cycle_info: dict, food_metrics: dict, transaction
                     elif tx_type == "Internal_Transfer" and to_acc == "KBANK" and cat == "Food_Daily":
                         daily_gross[d_obj] += amt
                     elif tx_type == "Income" and cat == "Friend_Repay":
-                        daily_repay[d_obj] += amt
+                        note = str(r.get("Note", "")).lower()
+                        if "คอนโด" not in note and "rent" not in note and "ค่าเช่า" not in note:
+                            daily_repay[d_obj] += amt
             except:
                 pass
     
@@ -581,7 +583,9 @@ def plot_monthly_expense_surplus_tracker(cycle_info: dict, cycle_plan: dict, tra
                             elif from_acc == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
                                 daily_gross_all[d_obj] += amt
                         elif tx_type == "Income" and cat == "Friend_Repay":
-                            daily_repay_all[d_obj] += amt
+                            note = str(r.get("Note", "")).lower()
+                            if "คอนโด" not in note and "rent" not in note and "ค่าเช่า" not in note:
+                                daily_repay_all[d_obj] += amt
                 except:
                     pass
                     
@@ -978,6 +982,138 @@ def render_today_expense_summary(today_summary: dict):
             <div class="metric-sub neutral">โควต้าเดินทางประจำสัปดาห์: ฿1,000.00</div>
         </div>
         """, unsafe_allow_html=True)
+
+
+def render_daily_food_pacing_table(cycle_info: dict, transactions: list):
+    """
+    Renders an elegant, detailed table of daily food burn rate,
+    showing Gross spend, Friend repayments, Net personal spend, Daily Budget comparison,
+    and cumulative pacing from Day 1 to Today.
+    """
+    start_date = cycle_info["start_date"]
+    end_date = cycle_info["end_date"]
+    today_date = cycle_info["as_of_date"]
+    base_daily = 350.0
+    
+    total_days = max(1, (end_date - start_date).days + 1)
+    dates = [start_date + pd.Timedelta(days=i) for i in range(total_days)]
+    
+    df = pd.DataFrame(transactions)
+    daily_gross = {d.date() if isinstance(d, pd.Timestamp) else d: 0.0 for d in dates}
+    daily_repay = {d.date() if isinstance(d, pd.Timestamp) else d: 0.0 for d in dates}
+    daily_notes = {d.date() if isinstance(d, pd.Timestamp) else d: [] for d in dates}
+    
+    if not df.empty and "Category" in df.columns:
+        for _, r in df.iterrows():
+            try:
+                d_raw = r.get("Date")
+                d_obj = datetime.strptime(str(d_raw)[:10], "%Y-%m-%d").date() if isinstance(d_raw, str) else (d_raw if isinstance(d_raw, date) else d_raw.date())
+                if d_obj in daily_gross:
+                    tx_type = r.get("Type")
+                    cat = r.get("Category")
+                    amt = float(r.get("Amount", 0.0))
+                    to_acc = r.get("To_Account")
+                    note = str(r.get("Note", ""))
+                    note_l = note.lower()
+                    
+                    if tx_type == "Expense" and cat == "Food_Daily":
+                        daily_gross[d_obj] += amt
+                        if note:
+                            daily_notes[d_obj].append(f"{note} (฿{amt:,.0f})")
+                    elif tx_type == "Internal_Transfer" and to_acc == "KBANK" and cat == "Food_Daily":
+                        daily_gross[d_obj] += amt
+                        if note:
+                            daily_notes[d_obj].append(f"{note} (฿{amt:,.0f})")
+                    elif tx_type == "Income" and cat == "Friend_Repay":
+                        if "คอนโด" not in note_l and "rent" not in note_l and "ค่าเช่า" not in note_l:
+                            daily_repay[d_obj] += amt
+            except:
+                pass
+                
+    # Build table rows from start_date up to today_date
+    cum_actual = 0.0
+    rows_html = []
+    
+    # Iterate through dates up to today
+    active_dates = [d.date() if isinstance(d, pd.Timestamp) else d for d in dates if (d.date() if isinstance(d, pd.Timestamp) else d) <= today_date]
+    
+    for idx, d_dt in enumerate(active_dates):
+        g = daily_gross[d_dt]
+        r = daily_repay[d_dt]
+        net = max(0.0, g - r)
+        cum_actual += net
+        cum_ideal = (idx + 1) * base_daily
+        diff = net - base_daily
+        
+        # Status badge
+        if net == 0 and d_dt == today_date:
+            badge = '<span style="background: #F1F5F9; color: #475569; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">⏳ ยังไม่เริ่มใช้</span>'
+        elif diff <= 0:
+            badge = f'<span style="background: #ECFDF5; color: #059669; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">🟢 ต่ำกว่างบ ฿{abs(diff):,.0f}</span>'
+        else:
+            badge = f'<span style="background: #FEF2F2; color: #DC2626; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">🔴 เกินงบ ฿{diff:,.0f}</span>'
+            
+        repay_str = f'<span style="color: #059669; font-size: 11px;">-฿{r:,.0f}</span>' if r > 0 else '<span style="color: #94A3B8;">-</span>'
+        gross_str = f'฿{g:,.0f}' if g > 0 else '<span style="color: #94A3B8;">฿0</span>'
+        net_str = f'<b style="color: #0F172A;">฿{net:,.0f}</b>' if net > 0 else '<span style="color: #64748B;">฿0</span>'
+        
+        # Cumulative difference
+        cum_diff = cum_actual - cum_ideal
+        cum_diff_str = f'<span style="color: #059669; font-weight: 600;">(-฿{abs(cum_diff):,.0f})</span>' if cum_diff <= 0 else f'<span style="color: #DC2626; font-weight: 600;">(+฿{cum_diff:,.0f})</span>'
+        
+        is_today_row = "background: #F8FAFC; font-weight: 600;" if d_dt == today_date else ""
+        date_label = f"{d_dt.strftime('%d %b')} " + ("<span style='color: #2563EB; font-size: 11px;'>(วันนี้)</span>" if d_dt == today_date else f"(Day {idx+1})")
+        
+        rows_html.append(f"""
+        <tr style="{is_today_row} border-bottom: 1px solid #F1F5F9;">
+            <td style="padding: 9px 12px; white-space: nowrap;">{date_label}</td>
+            <td style="padding: 9px 12px; text-align: right; color: #64748B;">{gross_str}</td>
+            <td style="padding: 9px 12px; text-align: right;">{repay_str}</td>
+            <td style="padding: 9px 12px; text-align: right;">{net_str}</td>
+            <td style="padding: 9px 12px; text-align: center;">{badge}</td>
+            <td style="padding: 9px 12px; text-align: right; white-space: nowrap;">
+                ฿{cum_actual:,.0f} <span style="font-size: 11px; color: #64748B;">/ {cum_ideal:,.0f}</span> {cum_diff_str}
+            </td>
+        </tr>
+        """)
+        
+    table_content = "\n".join(rows_html)
+    
+    total_cum_ideal = len(active_dates) * base_daily
+    net_saved = total_cum_ideal - cum_actual
+    summary_badge = f"🎉 ประหยัดสะสม ฿{net_saved:,.0f} (Under Budget)" if net_saved >= 0 else f"⚠️ เกินงบสะสม ฿{abs(net_saved):,.0f}"
+    summary_color = "#059669" if net_saved >= 0 else "#DC2626"
+    
+    st.markdown(f"""
+    <div style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; margin-top: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <div style="font-size: 13.5px; font-weight: 700; color: #0F172A;">
+                📋 ตารางสรุปการใช้จ่ายค่าอาหารรายวัน (Daily Food Pacing Breakdown)
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: {summary_color}; background: #F8FAFC; padding: 3px 10px; border-radius: 8px; border: 1px solid #E2E8F0;">
+                {summary_badge}
+            </div>
+        </div>
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'Prompt', 'Inter', sans-serif;">
+                <thead>
+                    <tr style="background: #F8FAFC; border-bottom: 1.5px solid #CBD5E1; color: #475569; font-size: 11.5px; text-transform: uppercase;">
+                        <th style="padding: 8px 12px; text-align: left;">📅 วันที่</th>
+                        <th style="padding: 8px 12px; text-align: right;">เต็มบิล (Gross)</th>
+                        <th style="padding: 8px 12px; text-align: right;">เพื่อนคืน (Repay)</th>
+                        <th style="padding: 8px 12px; text-align: right;">กินจริง (Net)</th>
+                        <th style="padding: 8px 12px; text-align: center;">สถานะงบวัน (฿350)</th>
+                        <th style="padding: 8px 12px; text-align: right;">สะสมจริง vs เป้าหมาย</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_content}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 
 
