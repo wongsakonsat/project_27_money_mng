@@ -72,26 +72,36 @@ class TransactionEngine:
 
         cycle_df = df[df["Cycle"] == target_cycle_id] if not df.empty and "Cycle" in df.columns else pd.DataFrame()
 
-        # Category spending aggregation (Includes Direct Expenses + CC Backing Transfers to KBANK + Envelopes from Thai Credit)
-        cat_spend = {cat: 0.0 for cat in config.CATEGORY_NAMES}
+        # Category spending aggregation (Includes Direct Expenses + CC Backing Transfers to KBANK - Repayments/Incomes)
+        cat_gross = {cat: 0.0 for cat in config.CATEGORY_NAMES}
+        cat_repay = {cat: 0.0 for cat in config.CATEGORY_NAMES}
+        
         if not cycle_df.empty:
             for _, row in cycle_df.iterrows():
                 tx_type = row.get("Type")
                 cat = row.get("Category")
                 amt = float(row.get("Amount", 0.0))
+                to_acc = row.get("To_Account")
+                note = str(row.get("Note", "")).lower()
+                
                 if tx_type == "Expense":
-                    cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
+                    if cat in cat_gross:
+                        cat_gross[cat] += amt
                 elif tx_type == "Internal_Transfer":
-                    # 1. Backing CC swipes transferred into KBANK (e.g. Ice cream, Grab, YSL perfume)
-                    if row.get("To_Account") == "KBANK" and cat in ["Food_Daily", "Special_Meal", "Transit", "Wishlist_Hobby", "Mom", "Utilities_Phone", "Other"]:
-                        cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
-                    # 2. Commitments allocated from Thai Credit
-                    elif row.get("From_Account") == "Thai Credit" and cat in ["Utilities_Phone", "Mom", "Rent", "DCA"]:
-                        cat_spend[cat] = cat_spend.get(cat, 0.0) + amt
-
-        # Deduct Friend Repayments so Food_Daily only reflects Net Personal food spending
-        friend_repay = float(cycle_df[(cycle_df["Type"] == "Income") & (cycle_df["Category"] == "Friend_Repay")]["Amount"].sum()) if not cycle_df.empty else 0.0
-        cat_spend["Food_Daily"] = max(0.0, cat_spend.get("Food_Daily", 0.0) - friend_repay)
+                    # Backing CC swipes transferred into KBANK (e.g. Ice cream, Grab, YSL perfume, Net backing)
+                    if to_acc == "KBANK" and cat in ["Food_Daily", "Special_Meal", "Transit", "Wishlist_Hobby", "Mom", "Utilities_Phone", "Other"]:
+                        if cat in cat_gross:
+                            cat_gross[cat] += amt
+                elif tx_type == "Income":
+                    if cat == "Friend_Repay":
+                        if "คอนโด" in note or "rent" in note or "ค่าเช่า" in note:
+                            cat_repay["Rent"] += amt
+                        else:
+                            cat_repay["Food_Daily"] += amt
+                    elif cat in cat_repay and cat != "Salary":
+                        cat_repay[cat] += amt
+                        
+        cat_spend = {cat: max(0.0, cat_gross[cat] - cat_repay[cat]) for cat in config.CATEGORY_NAMES}
         
         # Daily Food Metrics
         food_spent = cat_spend.get("Food_Daily", 0.0)

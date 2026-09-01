@@ -362,16 +362,18 @@ with tab_dash:
     def get_envelope_txs(key):
         if cycle_df.empty:
             return pd.DataFrame()
+        # Filter out internal staging transfers between own wallets (Thai Credit -> SCB)
+        valid_df = cycle_df[~((cycle_df["Type"] == "Internal_Transfer") & (cycle_df["From_Account"] == "Thai Credit") & (cycle_df["To_Account"] == "SCB"))]
         if key == "Mom":
-            return cycle_df[(cycle_df["Category"] == "Mom")]
+            return valid_df[(valid_df["Category"] == "Mom")]
         elif key == "DCA":
-            return cycle_df[(cycle_df["Category"] == "DCA")]
+            return valid_df[(valid_df["Category"] == "DCA")]
         elif key == "Insurance":
-            return cycle_df[(cycle_df["Category"] == "Insurance_Fund") | ((cycle_df["Type"] == "Internal_Transfer") & (cycle_df["To_Account"] == "BAY"))]
+            return valid_df[(valid_df["Category"] == "Insurance_Fund") | ((valid_df["Type"] == "Internal_Transfer") & (valid_df["To_Account"] == "BAY"))]
         elif key == "Rent":
-            return cycle_df[(cycle_df["Category"] == "Rent")]
+            return valid_df[(valid_df["Category"] == "Rent") | ((valid_df["Type"] == "Income") & (valid_df["Category"] == "Friend_Repay") & (valid_df["Note"].str.contains("คอนโด|rent|ค่าเช่า", case=False, na=False)))]
         elif key == "Utilities_Phone":
-            return cycle_df[(cycle_df["Category"] == "Utilities_Phone")]
+            return valid_df[(valid_df["Category"] == "Utilities_Phone")]
         return pd.DataFrame()
 
     mom_txs = get_envelope_txs("Mom")
