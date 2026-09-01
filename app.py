@@ -14,9 +14,11 @@ import plotly.graph_objects as go
 
 import config
 from cycle_utils import get_cycle_for_date, get_current_cycle_info
+import importlib
 from backend import FinanceBackend
 from transaction_engine import TransactionEngine
 import ui_components
+importlib.reload(ui_components)
 
 # Streamlit Page Config
 st.set_page_config(
