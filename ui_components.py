@@ -1064,55 +1064,48 @@ def render_daily_food_pacing_table(cycle_info: dict, transactions: list):
         is_today_row = "background: #F8FAFC; font-weight: 600;" if d_dt == today_date else ""
         date_label = f"{d_dt.strftime('%d %b')} " + ("<span style='color: #2563EB; font-size: 11px;'>(วันนี้)</span>" if d_dt == today_date else f"(Day {idx+1})")
         
-        rows_html.append(f"""
-        <tr style="{is_today_row} border-bottom: 1px solid #F1F5F9;">
-            <td style="padding: 9px 12px; white-space: nowrap;">{date_label}</td>
-            <td style="padding: 9px 12px; text-align: right; color: #64748B;">{gross_str}</td>
-            <td style="padding: 9px 12px; text-align: right;">{repay_str}</td>
-            <td style="padding: 9px 12px; text-align: right;">{net_str}</td>
-            <td style="padding: 9px 12px; text-align: center;">{badge}</td>
-            <td style="padding: 9px 12px; text-align: right; white-space: nowrap;">
-                ฿{cum_actual:,.0f} <span style="font-size: 11px; color: #64748B;">/ {cum_ideal:,.0f}</span> {cum_diff_str}
-            </td>
-        </tr>
-        """)
+        rows_html.append(
+            f'<tr style="{is_today_row} border-bottom: 1px solid #F1F5F9;">'
+            f'<td style="padding: 9px 12px; white-space: nowrap;">{date_label}</td>'
+            f'<td style="padding: 9px 12px; text-align: right; color: #64748B;">{gross_str}</td>'
+            f'<td style="padding: 9px 12px; text-align: right;">{repay_str}</td>'
+            f'<td style="padding: 9px 12px; text-align: right;">{net_str}</td>'
+            f'<td style="padding: 9px 12px; text-align: center;">{badge}</td>'
+            f'<td style="padding: 9px 12px; text-align: right; white-space: nowrap;">฿{cum_actual:,.0f} <span style="font-size: 11px; color: #64748B;">/ {cum_ideal:,.0f}</span> {cum_diff_str}</td>'
+            f'</tr>'
+        )
         
-    table_content = "\n".join(rows_html)
+    table_content = "".join(rows_html)
     
     total_cum_ideal = len(active_dates) * base_daily
     net_saved = total_cum_ideal - cum_actual
     summary_badge = f"🎉 ประหยัดสะสม ฿{net_saved:,.0f} (Under Budget)" if net_saved >= 0 else f"⚠️ เกินงบสะสม ฿{abs(net_saved):,.0f}"
     summary_color = "#059669" if net_saved >= 0 else "#DC2626"
     
-    st.markdown(f"""
-    <div style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; margin-top: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-            <div style="font-size: 13.5px; font-weight: 700; color: #0F172A;">
-                📋 ตารางสรุปการใช้จ่ายค่าอาหารรายวัน (Daily Food Pacing Breakdown)
-            </div>
-            <div style="font-size: 12px; font-weight: 700; color: {summary_color}; background: #F8FAFC; padding: 3px 10px; border-radius: 8px; border: 1px solid #E2E8F0;">
-                {summary_badge}
-            </div>
-        </div>
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'Prompt', 'Inter', sans-serif;">
-                <thead>
-                    <tr style="background: #F8FAFC; border-bottom: 1.5px solid #CBD5E1; color: #475569; font-size: 11.5px; text-transform: uppercase;">
-                        <th style="padding: 8px 12px; text-align: left;">📅 วันที่</th>
-                        <th style="padding: 8px 12px; text-align: right;">เต็มบิล (Gross)</th>
-                        <th style="padding: 8px 12px; text-align: right;">เพื่อนคืน (Repay)</th>
-                        <th style="padding: 8px 12px; text-align: right;">กินจริง (Net)</th>
-                        <th style="padding: 8px 12px; text-align: center;">สถานะงบวัน (฿350)</th>
-                        <th style="padding: 8px 12px; text-align: right;">สะสมจริง vs เป้าหมาย</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {table_content}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    html_output = (
+        f'<div style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 14px 16px; margin-top: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">'
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">'
+        f'<div style="font-size: 13.5px; font-weight: 700; color: #0F172A;">📋 ตารางสรุปการใช้จ่ายค่าอาหารรายวัน (Daily Food Pacing Breakdown)</div>'
+        f'<div style="font-size: 12px; font-weight: 700; color: {summary_color}; background: #F8FAFC; padding: 3px 10px; border-radius: 8px; border: 1px solid #E2E8F0;">{summary_badge}</div>'
+        f'</div>'
+        f'<div style="overflow-x: auto;">'
+        f'<table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: \'Prompt\', \'Inter\', sans-serif;">'
+        f'<thead>'
+        f'<tr style="background: #F8FAFC; border-bottom: 1.5px solid #CBD5E1; color: #475569; font-size: 11.5px; text-transform: uppercase;">'
+        f'<th style="padding: 8px 12px; text-align: left;">📅 วันที่</th>'
+        f'<th style="padding: 8px 12px; text-align: right;">เต็มบิล (Gross)</th>'
+        f'<th style="padding: 8px 12px; text-align: right;">เพื่อนคืน (Repay)</th>'
+        f'<th style="padding: 8px 12px; text-align: right;">กินจริง (Net)</th>'
+        f'<th style="padding: 8px 12px; text-align: center;">สถานะงบวัน (฿350)</th>'
+        f'<th style="padding: 8px 12px; text-align: right;">สะสมจริง vs เป้าหมาย</th>'
+        f'</tr>'
+        f'</thead>'
+        f'<tbody>{table_content}</tbody>'
+        f'</table>'
+        f'</div>'
+        f'</div>'
+    )
+    st.markdown(html_output, unsafe_allow_html=True)
 
 
 
