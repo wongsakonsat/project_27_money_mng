@@ -131,8 +131,8 @@ DEFAULT_CREDIT_CARDS = [
         "bank_name": "TTB",
         "due_day": 25,
         "statement_amount": 27886.78,
-        "paid_amount": 0.0,
-        "status": "Unpaid",
+        "paid_amount": 27886.78,
+        "status": "Paid",
         "icon": "💳",
         "logo": "ttb.png"
     },
@@ -142,8 +142,8 @@ DEFAULT_CREDIT_CARDS = [
         "bank_name": "KBANK",
         "due_day": 5,
         "statement_amount": 58500.00,
-        "paid_amount": 0.0,
-        "status": "Unpaid",
+        "paid_amount": 58500.00,
+        "status": "Paid",
         "icon": "💳",
         "logo": "kbank.png"
     },
